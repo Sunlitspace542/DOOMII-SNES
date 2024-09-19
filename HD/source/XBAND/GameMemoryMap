@@ -1,0 +1,26 @@
+
+Here's a really simple SRAM memory map.
+
+The important things from a game perspective are the patch entry point,
+the game comms session record and the game results record
+
+Top of SRAM:			$E10000
+
+OS Private stuff in here (dbase, etc)
+
+Beginning of os space:		$E0255c
+
+Gametime os stuff lives here
+
+Game results record:		$E0245c	; *** all results stuff goes in here
+Game comms session:		$E02300	; *** pass this into gametalk functions for the session ptr
+
+End of game patch space:	$E02000
+
+The game patch and it's data live in here
+
+GamePatchEntryPoint:		$E00210	; *** the main entry point for the game patch
+
+OSLow Memory globals live here
+
+Bottom of SRAM:			$E00000

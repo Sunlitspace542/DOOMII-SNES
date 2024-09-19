@@ -1,0 +1,38 @@
+****************** EXPLANATIONS FOR MULTIPLE BLAST BUFFER BUILDS
+****** RANDY's Variables
+
+BlastBufferCnt                  - How many blast buffers allocated by musician
+BlastBufferSize                 - how large in bytes each blast buffer is
+BlastBufferAddress              - absolute start address of first blast buffer
+TotalBlastBufferSize            - how much memory is allocated total for blast
+
+
+(EFFECTNAME)_eff_BWV            - bwave number for the effect
+
+
+SPECIAL NOTES TO RANDY
+
+    You may basically allocate memory freely as you wish using
+    BlastBufferAddress  and TotalBlastBufferSize above for general direction.
+
+    There is a new DCOM command called DCOM_SETWAVEASBLAST which will allow
+    you to set a blast buffer to an effect waveform. This simplifies your
+    allocation greatly. This command sets up correct addressing and loop offsets
+    for the blasted effect based on your setting of the blast address when this
+    command is set. It adjusts start and loop offsets for the waveform so you
+    only need keep track of memory allocation.
+    It is documented in DCOM.I. Also, DO NOT USE
+    DCOM_BLASTEFFECT (DCOM command 24) if you are using multiple buffers. It is
+    only used to shutdown the previous blast sound and to keep track of the next
+    blast sound to shut down. It will only cause problems in your allocation and
+    is not necessary other than internal single blast allocation.
+
+    Please let me know if you need anything more or if this does not work as
+    expected. (Hopefully no problems, seems to work fine here).
+
+
+
+
+
+
+

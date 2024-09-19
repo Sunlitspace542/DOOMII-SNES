@@ -1,0 +1,5913 @@
+
+
+
+
+            .list d.lst
+            .output "basm"
+
+		   ; MD700.ASM
+		   ; by Bill Williams
+		   ;
+		   ; Music driver for SuperFamicom, SPC700 side.
+		   ; BMUS version
+		   ;
+
+;		.asym address
+
+
+
+NEWRESET    =   1       ; use new reset code
+
+
+MAXTRACKS  = 20          ; max number of music tracks we can play
+MAXDQ      = 32           ; max number of dcom commands we can que up
+
+; sets up an array of bytes, 1 for each track with name NAME
+
+        .macro TrackBytes NAME
+\NAME   .ds  MAXTRACKS
+        .endm
+
+        .macro ChannelBytes NAME
+\NAME   .ds  8
+        .endm
+
+
+        .macro ChannelWords NAME
+\NAME   .ds  16
+        .endm
+
+SilenceWF   =   8   ;  SRC number of silent waveform
+ScratchWF   =   9   ;  SRC number for scratch waveform - used for temporary
+                    ;   address writes
+
+
+RANDOM_SUPPORT = 0  ; set to 1 if you want the random number capabilities
+
+MUSIC_DRIVER_ADDRESS   =     $700
+SONG_DATA_SPACE        =     $1F00
+
+;		   .include "snd.i"
+
+		   ;
+
+
+
+           ; Standard register definitions for SuperFamicom Sound Chip
+		   ; And Berlioz Data Structures
+		   ; By Bill Williams
+		   ;
+		   ; ************** REGISTER DEFINITIONS ****************
+		   ;
+		   ; Addresses are given as seen from the SPC700 side.
+		   ;
+		   ;		     R/W     When Reset
+TEST_REG	   =	 $F0	 ;   -	     --
+CONTROL_W	   =	 $F1	 ;   W	     --00-000
+ADR_R		   =	 $F2	 ;   R/W     Indeterminate
+ADR_W		   =	 $F2	 ;
+DATA_R		   =	 $F3	 ;   R/W     Indeterminate
+DATA_W		   =	 $F3	 ;
+PORT0_R 	   =	 $F4	 ;   R/W     0
+PORT0_W 	   =	 $F4	 ;
+PORT1_R 	   =	 $F5	 ;   R/W     0
+PORT1_W 	   =	 $F5	 ;
+PORT2_R 	   =	 $F6	 ;   R/W     0
+PORT2_W 	   =	 $F6	 ;
+PORT3_R 	   =	 $F7	 ;   R/W     0
+PORT3_W 	   =	 $F7	 ;
+TIMER0_W	   =	 $FA	 ;   W	     Indeterminate
+TIMER1_W	   =	 $FB	 ;   W	     Indeterminate
+TIMER2_W	   =	 $FC	 ;   W	     Indeterminate
+COUNTER0_R	   =	 $FD	 ;   R	     Indeterminate
+COUNTER1_R	   =	 $FE	 ;   R	     Indeterminate
+COUNTER2_R	   =	 $FF	 ;   R	     Indeterminate
+		   ;
+		   ;
+		   ; Control Register Bits:
+		   ;
+REMOVEROM_B    =    $80     ; removes 64 byte IPL ROM from top of memory
+                            ; if cleared????
+PORTCLEAR10_B	   =	 $10	 ; Clears ports 1 and 0
+PC10_B		   =	 PORTCLEAR10_B
+PORTCLEAR32_B	   =	 $20	 ; Clears ports 2 and 3
+PC32_B		   =	 PORTCLEAR32_B
+; REMOVEROM_B disabled due to possible reset problems
+STARTTIMER0_B      =     $1 | REMOVEROM_B ; starts timer 0
+STARTTIMER1_B      =     $2  | REMOVEROM_B ; starts timer 1
+STARTTIMER2_B      =     $4  | REMOVEROM_B  ; starts timer 2
+TIMERMASK      =     STARTTIMER0_B | STARTTIMER1_B | STARTTIMER2_B | REMOVEROM_B
+PORTCLEARMASK      =     PORTCLEAR10_B | PORTCLEAR32_B | REMOVEROM_B
+CONTROLMASK =  TIMERMASK | REMOVEROM_B | PORTCLEARMASK
+; 9-22-91 mod:
+
+
+           ;
+		   ; DSP main registers
+		   ;
+MVOLL		   =	 $0C	 ; main volume left
+MVOLR		   =	 $1C	 ; main volume right
+EVOLL		   =	 $2C	 ; echo volume left
+EVOLR		   =	 $3C	 ; echo volume right
+KON		   =	 $4C	 ; Key On. d0-d7 correspond to voice 0-7
+KOF		   =	 $5C	 ; Key Off
+FLG		   =	 $6C	 ; On/off of reset, mute, echo, noise clock
+ENDX_R		   =	 $7C	 ; DSP writes to indicate source end block
+ENDX_CLR	   =	 $7C	 ; Write here to clear ENDX_R
+EFB        =     $0D     ; Echo Feed-Back
+PMON		   =	 $2D	 ; Pitch modulation On
+NON		   =	 $3D	 ; Noise on/off
+EON		   =	 $4D	 ; Echo on/off
+DIR		   =	 $5D	 ; Offset address of source directory
+ESA		   =	 $6D	 ; Offset address of echo region
+EDL		   =	 $7D	 ; Echo Delay. only lower nybble operative.
+C0		   =	 $0F	 ; Echo filter coefficients
+C1		   =	 $1F	 ;
+C2		   =	 $2F	 ;
+C3		   =	 $3F	 ;
+C4		   =	 $4F	 ;
+C5		   =	 $5F	 ;
+C6		   =	 $6F	 ;
+C7		   =	 $7F	 ;
+
+VOLUMEFADES =   21          ; number of volume fades we need to watch
+           ;
+		   ; DSP voice register blocks
+		   ;
+V0		   =	 $00	 ; base address of voice 0 block
+V1		   =	 $10	 ; base address of voice 1 block
+V2		   =	 $20	 ; base address of voice 2 block
+V3		   =	 $30	 ; base address of voice 3 block
+V4		   =	 $40	 ; base address of voice 4 block
+V5		   =	 $50	 ; base address of voice 5 block
+V6		   =	 $60	 ; base address of voice 6 block
+V7		   =	 $70	 ; base address of voice 7 block
+		   ;
+		   ; DSP voice register offsets (add these to the
+		   ;	 voice register blocks)
+		   ;
+VOLL		   =	 $00	 ; left volume
+VOLR		   =	 $01	 ; right volume
+PITCHL		   =	 $02	 ; pitch low byte  (14 bits)
+PITCHH		   =	 $03	 ; pitch high byte (14 bits)
+SRCN		   =	 $04	 ; source number
+ADSR1		   =	 $05	 ; adsr designation 1
+ADSR2		   =	 $06	 ; adsr designation 2
+GAIN		   =	 $07	 ; envelope direct control (operates when
+				 ;   d7 of ADSR1 == 0)
+ENVX_R		   =	 $08	 ; DSP writes present value of envelope here
+OUTX_R		   =	 $09	 ; DSP writes value after envelope multipl.
+				 ;  and before VOL multiplication. (present
+				 ;   wave height value.)
+		   ;
+		   ; Voice designation bits for kon, kof, pmon,
+		   ; non, eon, endx.
+		   ;
+V0_B		   =	 $01	 ; designates voice 0
+V1_B		   =	 $02	 ; etc.
+V2_B		   =	 $04
+V3_B		   =	 $08
+V4_B		   =	 $10
+V5_B		   =	 $20
+V6_B		   =	 $40
+V7_B		   =	 $80
+ALL_VOICES_B	   =	 $FF
+		   ; masks for clearing above bits
+V0_BM		   =	 $FE
+V1_BM		   =	 $FD
+V2_BM		   =	 $FB
+V3_BM		   =	 $F7
+V4_BM		   =	 $EF
+V5_BM		   =	 $DF
+V6_BM		   =	 $BF
+V7_BM		   =	 $7F
+
+		   ;
+		   ; Control bits for ADSR1 register
+		   ;
+ADSRMODE_B	   =	 $80
+GAINMODE_B	   =	 $00
+		   ;
+		   ; Control bits for GAIN register
+DIRECT_B	   =	 $00	 ; direct designation of gian
+INCLINEAR_B	   =	 $C0	 ; increase mode linear
+INCBLINE_B	   =	 $E0	 ; increase mode bent-line
+DECLINEAR_B	   =	 $80	 ; decrease mode linear
+DECEXP_B	   =	 $A0	 ; decrease mode exponential
+		   ;
+		   ; Control bits for FLG
+		   ;
+FLG_RES_B	   =	 $80	 ; soft reset: all voices key on suspension
+				 ; and mute is turned on
+FLG_MUTE_B	   =	 $40	 ; mutes all voices
+FLG_NOT_ECEN_B	   =	 $20	 ; Echo enabled write to external memory
+				 ; when this is bit is 0 (logic inverted)
+FLG_NCLK_MASK	   =	 $1F	 ; noise clock mask bits
+
+
+
+           ;
+		   ;
+		   ;
+		   ;
+		   ;  WOLFGANG DATA STRUCTURES
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+CallBegin          =     0       ; pointer into phrase call
+CallEnd            =     2       ; pointer into phrase call
+CallNumLoops       =     4       ; pointer into phrase call
+CallFrqOffset     =     5       ; pointer into phrase call
+CallVolumeScale    =     7       ; pointer into phrase call
+CallNumInsts       =     9       ; pointer into phrase call
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;  BERLIOZ DATA STRUCTURES:
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+		   ;
+		   ; **********************************
+		   ; * Structure Envelope_Table_Spec: *
+		   ; **********************************
+		   ;
+		   ; This structure specifies the static data used to
+		   ; manipulate a working Envelope_Table structure:
+		   ; it is the stuff preloaded by the driver code. This
+		   ; data is then copied into the top of a working
+		   ; Envelope Structure for processing.
+		   ;
+		   ; The values specified are offsets from the structure base:
+		   ;
+ENVSPEC_SUSSTART   =	 0		     ; sustain start location index #
+					     ; UBYTE value: Static
+					     ;
+ENVSPEC_SUSEND	   =	 (ENVSPEC_SUSSTART+1); sustain end location index #
+					     ; (inclusive: this slot will
+					     ;	be the last loop of the
+					     ;	sustain before repeating.)
+					     ; UBYTE value: Static
+					     ;
+ENVSPEC_NEXTTIME   =	 (ENVSPEC_SUSEND+1)  ; value of Next-Note index
+					     ; minus the susend index
+					     ; (the next note index is not
+					     ;	itself specified here,
+					     ;	because this is the datum
+					     ;	we really need.)
+					     ; This is in SLOTTICKS units,
+					     ; rather than driver ticks
+					     ; UBYTE value: Static
+					     ;
+ENVSPEC_TICKS	   =	 (ENVSPEC_NEXTTIME+1); How many ticks per table slot
+					     ; (Often referred to as SLOTTICKS)
+					     ; UBYTE value: Static
+					     ;
+ENVSPEC_SLEWFLG    =	 (ENVSPEC_TICKS+1)   ; 0 = give direct values
+					     ; non-zero = give slewed values
+					     ; UBYTE value: Static
+					     ;
+ENVSPEC_TABLENG    =	 (ENVSPEC_SLEWFLG+1) ; Index # length of table
+					     ; (how many slots)
+					     ; UBYTE value: Static
+					     ;
+ENVSPEC_TABWORD    =	 (ENVSPEC_TABLENG+1) ; 1 = Table of UBYTES
+					     ; 2 = Table of UWORDS
+					     ; UBYTE value: Static
+					     ;
+ENVSPEC_SPECIAL    =	 (ENVSPEC_TABWORD+1) ; Specific to envelope type
+					     ; See below for meanings.
+					     ; UBYTE value: Static
+					     ;
+ENVSPEC_STRUCT_SIZE	 =   (ENVSPEC_SPECIAL+1)
+		   ;
+		   ; Special byte meanings specific to envelope types:
+		   ;
+		   ; Stereo envelope extensions:
+SENVSPEC_PANTOG    =	 (ENVSPEC_SPECIAL)	 ; 0 = no pan toggle
+						 ; non-zero = do pan toggle
+						 ; UBYTE value: Static
+		   ;
+		   ; Tone envelope extensions:
+TENVSPEC_REWAVE    =	 (ENVSPEC_SPECIAL)	 ; 0 = don't restart waves
+						 ; $FF = restart waves
+						 ; UBYTE value: Static
+
+
+;**************************** ENVELOPE VARIABLE INDEX VALUES *****
+;******** for accessing high speed vars when processing envelopes
+AMPVARINDEX =   0
+PITCHVARINDEX = 8
+TONEVARINDEX  = 16
+STEREOVARINDEX = 24
+
+; macro for declaring envelope variables
+        .macro EnvelopeVariable NAME
+\NAME   .ds  8*4
+        .endm
+
+
+
+           ;
+		   ;
+		   ; *****************************
+		   ; * Structure Envelope_Table: *
+		   ; *****************************
+		   ;
+		   ; The working copy structure
+		   ;
+		   ; This forms the common basis for following through
+		   ; a table of envelope data, independant of what that
+		   ; envelope data specifies. Common routines can then
+		   ; manage these pointers.
+		   ;
+		   ;
+		   ; The values specified are offsets from the structure base:
+		   ;
+           ; this stuff is obsolete, only left here to explain the meaning
+           ; of similiarly named envelope variables
+
+;ENVTAB_SUSSTART   = ENVSPEC_SUSSTART     ; imbedded Envelope_Table_Spec
+;ENVTAB_SUSEND     = ENVSPEC_SUSEND       ;
+;ENVTAB_NEXTTIME   = ENVSPEC_NEXTTIME     ;
+;ENVTAB_TICKS      = ENVSPEC_TICKS        ;
+;ENVTAB_SLEWFLG    = ENVSPEC_SLEWFLG      ;
+;ENVTAB_TABLENG    = ENVSPEC_TABLENG      ; normally static, this member
+					     ; will be incremented if it equals
+					     ; sus_end.
+;ENVTAB_TABWORD    = ENVSPEC_TABWORD      ;
+;ENVTAB_SPECIAL    = ENVSPEC_SPECIAL      ;
+					     ;
+;/* NOW FOR THE WORKING COPY EXTENSIONS: */  ;
+;ENVTAB_TOPPNT      =     (ENVTAB_SPECIAL+1)  ; Top of table pointer.
+					     ; UWORD value: Calculated once
+					     ;
+;ENVTAB_CURPNT      =     (ENVTAB_TOPPNT+2)   ; current location pointer
+					     ; UWORD value: Working Copy
+					     ;
+;ENVTAB_CURX    =     (ENVTAB_CURPNT+2)   ; current location index #
+					     ; UBYTE value: Working Copy
+					     ;
+;ENVTAB_NEXTCNT     =     (ENVTAB_CURX+1)     ; Countdown before Next-Note
+					     ; is invoked. This count is
+					     ; in driver ticks.
+					     ; UWORD value: Working Copy
+					     ;
+;ENVTAB_TICKCNT     =     (ENVTAB_NEXTCNT+2)  ; Tick countdown timer
+					     ; UBYTE value: Working Copy
+					     ;
+; *********************
+; The next 2 members must remain grouped together:
+;ENVTAB_CURSLEW     =     (ENVTAB_TICKCNT+1)  ; Current slewed table value
+					     ; UWORD value: Working Copy
+					     ;
+;ENVTAB_SLEWRATE    =     (ENVTAB_CURSLEW+2)  ; Slew rate for this table slot
+					     ; UWORD value: Working Copy
+; The above 2 members must remain grouped together.
+; *********************
+;ENVTAB_TABACTIVE   =     (ENVTAB_SLEWRATE+2) ; 0 if table has hit end
+					     ; non-zero if more to do.
+					     ; UBYTE value: Working Copy
+
+;ENVTAB_TICKFRC     =   (ENVTAB_TABACTIVE+1)   ; UBYTE
+                            ; fractional portion of slot tick timer
+;ENVTAB_TICKFRCCNT = (ENVTAB_TICKFRC+1) ; UBYTE
+                            ; counter used to count down fractional timer
+;ENVTAB_STRUCT_SIZE =     (2)
+		   ;
+		   ;
+		   ; Special extensions to the basic env_spec:
+		   ;
+		   ; Stereo envelope extensions:
+		   ;
+		   ; Special meaning of imbedded byte:
+		   ;
+		   ; For setereo envelopes:
+;SENVTAB_PANTOG    = (ENVTAB_SPECIAL)     ; 0 = no pan toggle
+						 ; $FF = do pan toggle
+						 ; UBYTE value: Static
+						 ;
+
+;TENVTAB_REWAVE     =     (ENVTAB_SPECIAL)    ; 0 = don't restart waves
+						 ; $FF = restart waves
+						 ; UBYTE value: Static
+
+		   ; Extra byte at end of structure:
+		   ;
+;SENVTAB_CURTOG    = (ENVTAB_STRUCT_SIZE)     ; current state of pan toggle
+						 ; UBYTE value: Working Copy
+;SENVTAB_STRUCT_SIZE =   (SENVTAB_CURTOG+1)
+		   ;
+		   ;
+		   ;
+		   ;
+		   ; ********************
+		   ; * Structure BSound *
+		   ; ********************
+		   ;
+		   ; Specifies the characteristics of a sound:
+		   ;
+BSN_MODES	   =	 0	     ; See M_ flags below for meanings
+				     ; BFLAGS value
+				     ;
+BSN_AMP 	   =	 1	     ; Amplitude envelope/amplitude value
+				     ; UBYTE value
+				     ;
+BSN_TONE	   =	 2	     ; Tone Envelope/waveform number
+				     ; UBYTE value
+				     ;
+BSN_PITCH	   =	 3	     ; Pitch Envelope
+				     ; UBYTE value
+				     ;
+BSN_STEREO	   =	 4	     ; Stereo Envelope/Stereo placement
+				     ; UBYTE value
+				     ;
+BSN_ECHO	   =	 5	     ; Echo spec to use
+				     ; UBYTE value
+				     ;
+BSN_STRUCT_SIZE    =	 (BSN_ECHO+1)
+		   ;
+		   ; FLAGS FOR BSN_MODES:
+		   ; This controls whether or not envelopes are turned on
+		   ; or not. In most cases, if the envelope is not turned on,
+		   ; the value is specified directly. (Except Pitch, which
+		   ; then becomes a pitch delta of 0).
+M_AMP		     =	   1	     ; turns amp envelope on
+M_TONE		     =	   2	     ; turns tone envelope on
+M_PITCH 	     =	   4	     ; turns pitch envelope on
+M_STEREO	     =	   8	     ; turns stereo envelope on
+M_ECHO		     =	 $10	     ; turns echo spec on
+M_PITCHMOD	     =	 $20	     ; turns hardware pitch mod on
+M_NONOTE	     =	 $40	     ; store the note value directly, rather
+				     ; than translating it through the note
+				     ; table.
+M_ONESHOT	     =	 $80	     ; count channel free when wave cycle
+				     ; is completed.
+
+		   ;
+		   ;
+		   ;
+		   ; *********************
+		   ; * Structure BEffect *
+		   ; *********************
+		   ;
+		   ; specifies a sound effect.
+		   ;
+		   ;
+		   ; ************* SPECIAL ONE-TIME HEADER ********
+BFX_COUNT	   =	 0
+		   ; This structure is started with a single byte giving
+		   ; the number of BEffect structures that follow.
+		   ;
+BFX_SOUND	   =	 0	     ; BSN sound number for effect
+				     ; UBYTE value
+				     ;
+BFX_VOL 	   =	 1	     ; Overall volume
+				     ; BYTE value
+				     ;
+BFX_DURATION	   =	 2	     ; Note duration for effect in driver ticks
+				     ; UWORD value
+				     ;
+BFX_NOTE	   =	 4	     ; Base note for the effect
+				     ; UWORD value
+				     ;
+BFX_PRIORITY	   =	 6	     ; Priority for this effect
+				     ; UBYTE value
+				     ;
+BFX_CHANSCAN	   =	 7	     ; Which channels are eligible
+				     ; UBYTE value
+				     ;
+BFX_STRUCT_SIZE    =	 (BFX_CHANSCAN + 1)
+
+
+
+
+
+		   ; *********************
+		   ; * Structure BEcho	 *
+		   ; *********************
+		   ;
+		   ; specifies an echo environment.
+		   ; ** NOTE: you should not reorder these: we use
+		   ; an incrementing Y counter to move them into the
+		   ; hardware.
+		   ;
+BEC_ECHODELAY	   =	 0	     ; Interval of 16msec, only lower 4
+				     ; bits operable.
+				     ; UBYTE value: static
+				     ;
+BEC_ECHOVOLL	   =	 1	     ; Echo volume left
+				     ; BYTE value: static
+				     ;
+BEC_ECHOVOLR	   =	 2	     ; Echo volume right
+				     ; BYTE value: static
+				     ;
+BEC_FEEDBACK	   =	 3	     ; Echo feedback, signed.
+				     ; BYTE value: static
+				     ;
+BEC_FILTER0	   =	 4	     ; Filter Register C0 coefficient
+BEC_FILTER1	   =	 5	     ; Filter Register C1 coefficient
+BEC_FILTER2	   =	 6	     ; Filter Register C2 coefficient
+BEC_FILTER3	   =	 7	     ; Filter Register C3 coefficient
+BEC_FILTER4	   =	 8	     ; Filter Register C4 coefficient
+BEC_FILTER5	   =	 9	     ; Filter Register C5 coefficient
+BEC_FILTER6	   =	 10	     ; Filter Register C6 coefficient
+BEC_FILTER7	   =	 11	     ; Filter Register C7 coefficient
+BEC_STRUCT_SIZE    =	 (BEC_FILTER7 + 1)
+
+
+		   ;
+		   ; Ram location to store the Pointer Array Pointers:
+ARRAYBASE	   =	 (SONG_DATA_SPACE-$20)
+		   ; Indexes off of ARRAY_BASE to find the individual
+		   ; array bases:
+ECHOBASE	   =	 0	     ; address of the echo page: only the
+				     ; high byte is used.
+BSNBASE 	   =	 2	     ; pointer to array of BSound pointers
+AMPENVBASE	   =	 4	     ; pointer to array of AmpEnv pointers
+PITCHENVBASE	   =	 6	     ; pointer to array of PitchEnv pointers
+STEREOENVBASE	   =	 8	     ; pointer to array of StereoEnv pointers
+TONEENVBASE	   =	 10	     ; pointer to array of ToneEnv pointers
+ECHOSPECBASE	   =	 12	     ; pointer to array of Echo Specs
+BFXBASE 	   =	 14	     ; pointer to array of BEffect pointers
+MELODYBASE	   =	 16	     ; pointer to array of Melody pointers
+SONGBASE	   =	 26	     ; pointer to array of Song pointers
+		   ;
+		   ; Special Parameter for BMUS: it tells us how far to fast
+		   ; forward the song we're currently playing, in driver
+		   ; ticks. Maximum advance time is 21.845 minutes
+FASTFORWARD	   =	 (SONG_DATA_SPACE-4)
+		   ; Special Parameter for BMUS: it tells us which song
+		   ; to play when we get a play command.
+;SONG2TRY	   =	 (SONG_DATA_SPACE-2) ; this is where it's stored.
+		   ; Special Parameter for BWAVE & BMUS: it tells us which BFX
+		   ; structure to play when we get a play command.
+;FX2TRY		   =	 (SONG_DATA_SPACE-1) ; this is where it's stored.
+		   ;
+		   ; Ram start of wave source directory (must be even page)
+SOURCEDIR	   =	 (SONG_DATA_SPACE)
+		   ;
+		   ;
+		   ; CHBUSY Flags:
+		   ; These bits are assigned meanings to the ChBusy
+		   ; variables...
+CHBUSY_FREE	   =	 0		 ; channel not busy
+CHBUSY_MUSIC	   =	 1		 ; channel playing music
+CHBUSY_EFFECT	   =	 $80		 ; channel busy with sound effect
+
+
+
+		   ; Player_State definitions:
+		   ; These numbers are tightly bound to PState_Vectors
+PSTATE_INACTIVE    =	 0   ; player not working
+PSTATE_COUNTMEL    =	 2   ; player counting off a delay time in the melody
+PSTATE_INMELODY    =	 4   ; player working through a melody array
+PSTATE_INPITCHBEND =     6   ; player working through a pitchbend
+PSTATE_COUNTPB    =      8   ; player counting off a delay time in pitchbend
+
+			 ; Note Delta equates
+;EQUATE   BITS STORED	  DELTA JUMP		DISTANCE IN HALF STEPS
+;ND_3OCT = $00         ; -3 octaves        -36
+;ND_2OCT = $01         ; -2 octaves        -24
+;ND_OCT4 = $02         ; -octave & a fourth    -17
+;ND_OCT  = $03         ; -octave       -12
+;ND_7    = $04         ; -major seventh    -11
+;ND_m7   = $05         ; -minor seventh    -10
+;ND_6    = $06         ; -sixth        -9
+;ND_a5   = $07         ; -augmented fifth      -8
+;ND_5    = $08         ; -fifth        -7
+;ND_d5   = $09         ; -diminished fifth     -6
+;ND_4    = $0A         ; -fourth       -5
+;ND_3    = $0B         ; -major third      -4
+;ND_m3   = $0C         ; -minor third      -3
+;ND_w    = $0D         ; -whole step       -2
+;ND_h    = $0E         ; -half step        -1
+;N_SAME  = $0F         ; 0 delta (same as last note)
+;NU_h    = $10         ; +half step        +1
+;NU_w    = $11         ; +whole step       +2
+;NU_m3   = $12         ; +minor third      +3
+;NU_3    = $13         ; +major third      +4
+;NU_4    = $14         ; +fourth       +5
+;NU_d5   = $15         ; +diminished fifth     +6
+;NU_5    = $16         ; +fifth        +7
+;NU_a5   = $17         ; +augmented fifth      +8
+;NU_6    = $18         ; +sixth        +9
+;NU_m7   = $19         ; +minor seventh    +10
+;NU_7    = $1A         ; +major seventh    +11
+;NU_OCT  = $1B         ; +octave       +12
+;NU_OCT4 = $1C         ; +octave & a fourth    +17
+;NU_2OCT = $1D         ; +2 octaves        +24
+;NU_3OCT = $1E         ; +3 octaves        +36
+;NU_4OCT = $1F         ; +4 octaves        +48
+
+
+
+
+
+		   ; Note command flags
+;NOTEF_TRIGGER      =     $20     ; Trigger this note
+;NOTEF_SPECIAL      =     $80     ; special meaning flag
+;NOTE_DELTA_MASK    =     $1F     ; bit that specify note deltas
+
+		   ; Special commands for melody arrays:
+;MELCOM_END     =     $F0         ; ends melody
+;MELCOM_DELTAEX     =     $F1         ; melody delta expression
+;MELCOM_ABSOEX      =     $F2         ; melody absolute expression
+;MELCOM_MUTE    =     $F3         ; stop melody sound now
+;MELCOM_REST    =     $F4         ; decay normally
+;MELCOM_SETSOUND    =     $F5         ; select the current sound
+;MELCOM_CALLPHRASE  =     $F6         ; call a phrase
+;// incomplete list, not even used
+
+
+WAVEBLKOFS	   =	 3	 ; how many bytes are in front of the
+				 ; actual waveform data itself, in the
+				 ; waveform storage block.
+				 ;
+				 ; The first two bytes is the UWORD tune
+				 ; offset, and the next byte is BFLAGS
+				 ; WaveFlags variable. Meanings of the
+				 ; WaveFlags bits follows:
+WVM_NOISECLK_MASK  =	 $1F	 ; bits that specify noise clock rate
+WVM_NOISE	   =	 $80	 ; bit that turns noise on
+WVM_RETRIGGER	   =	 $40	 ; bit that causes retrigger of waveform,
+				 ;  even if that wave is already playing.
+WVM_LOOPED	   =	 $20	 ; loop bit is set on this waveform
+
+
+		   ; Ram location where the silent waveform is located:
+SILENTWAVE	   =	 ARRAYBASE - (9+WAVEBLKOFS)
+
+;		   .included"snd.i"
+		   .include "dcom.i"
+           .include "macros.i"
+
+		   .APUSTART (MUSIC_DRIVER_ADDRESS)
+;		   .APUBUF SONG_DATA_SPACE,$0E
+;		   .dw 0
+;		   .dw MUSIC_DRIVER_ADDRESS
+
+;		   .APUBUF $00DC,$0E
+
+; 9-22-91
+; 9-22-91 echo zero region moved from $7F00 to $FF00 for 64K use:
+ECHOZEROREGION     = $FF00   ; when echo is zero, this region is needed
+				 ; !!! MUST START ON PAGE BOUNDARY !!!
+
+
+
+		   ; Current Timing: worst case scenario (8 channels of
+		   ; music, all notes triggering at same time, all
+		   ; envelope tables turned on), the driver
+		   ; needs 49 milliseconds to perform (20.4 Hz)
+		   ;
+		   ; Without music running, processing the effects alone
+		   ; costs us 18.18 milliseconds (55 Hz) worst case
+		   ;
+		   ; Timing is set up to allow for driver ticks faster than
+		   ; the worst case --and then we try to make up for it
+		   ; on the next driver tick.
+		   ;
+TIMER0_SPEED       =    160   ; 20 millisecond delay, 64 millisecond max count
+TIMER1_SPEED       =    160  ; 20 millisecond delay
+TIMER2_SPEED       =    32   ; .5 millisecond delay
+DRIVERSUBTICKS     =    1    ; Every 5 timer ticks: 20 millisecond delay
+			     ; (50 Hz)
+			     ;
+MAXTIMEDEBT	   =	20   ; Maximum amount of SUBTICKS we'll accumulate
+			     ; to make up later: if we pass over this amount
+			     ; we say the hell with it and let the new timing
+			     ; stand.
+			     ; Maximum amount this value can be set to is
+			     ; $EF.
+
+
+TIMECHECK	   =	 0   ; make this 1 to lock up driver if we go overtime,
+			     ; make it 0 for normal operation.(for development)
+                             ;
+; 7/16/92-- actual hardware full volume value is 127-- ned martin
+FULL_VOLUME       =     127
+
+;FULL_VOLUME    =     75 ;djr 4/26/93 - Empire Strikes Back
+
+; djr 4/26/93: implemented an alternate channel search algorithm
+; djr 6-18-93: we found that a blast sound getting interrupted by another 
+;		blast sound might keep playing into unloaded blast area, so
+;		for Empire Strikes Back, we're going back to the old algorithm.
+
+;OLDSRCH equ 1   ;1->old, first chnl found algo, 0->new, best chnl found algo
+
+FASTRAMP    equ $9F ;value to put in GAIN register to cause current
+				;channel to end, instead of abruptly by storing 0.
+
+
+;		   .list "check"
+
+           .ORG  $100
+           ; first page variable space
+           ; you should only keep short term temporaries here
+           ; and switch this with the DP1 and setp directives
+           ; REMEMBER STACK SHARES THIS PAGE
+
+divtemp 	   .ds	 4	 ; for divide routine
+tempwordp1     =    divtemp   ; page 1 general temporary
+tempword2p1     =    divtemp  ; page 1 general temporary
+fnd_tune	   .ds	 2	 ; tuning info returned by Get_Chan_Tune
+
+NextEchoSpec    .ds 1 ; next echo spec to apply to next echo request
+
+
+; placed up here to conserve variable space
+
+
+;;;; NOTE - ICHANNELS MUST be page 1
+   TrackBytes  IChannels            ; channels ordered in priority
+
+   ChannelBytes ChEffect ; remembers effect number started in channel
+   ChannelBytes ChAmpVal ; current amp value if ampenv turned off
+   ChannelBytes ChTargetGain ; destination gain value for each channel
+   ChannelBytes ChFrqL ; current freq val to store in register low
+   ChannelBytes ChFrqH  ; current freq val to store in register high
+   ChannelBytes ChBaseVolume  ; current sum of volumes for this channel:
+				 ; this is the volume that is divided by
+				 ; the panning percentage to achieve final
+				 ; volumes.
+   ChannelWords ChCurTune   ; current tuning information for this wave
+   ChannelWords ChHWCurTune ; current hardware tuning information for this wave
+
+
+           ; Zero page variable space:
+		   ;
+		   .ORG  $00
+
+		   ; The Zero Page is zero'ed out by the routine Snd_Init,
+		   ; from location $00 to $EF (inclusive). You do NOT
+		   ; have $F0-$FF available (that's where the hardware
+		   ; registers are).
+
+
+Ind0           .ds   2   ; used for general indirection
+TempIndex          .ds   1       ; temporary storage for X or Y
+Zero           .ds   2      ; word/byte zero constant
+MinusOne       .ds   2      ; word/byte zero constant
+
+
+;; flags for bit set/clear operations
+
+
+BitFlags       .ds    1
+BitFlags2      .ds    1
+BitFlags3      .ds    1
+;; definitions of above flags
+;; must be defined through macros
+
+    DefineFlag ThisIsAnEffect,BitFlags,0   ; current sound is effect if set
+    DefineFlag DriverAlive,BitFlags,1      ; if set driver is up and running
+    DefineFlag StopAfterFade,BitFlags,2    ; Flag to stop music and sounds
+                                           ; after fade
+    DefineFlag NoWaveRetrigger,BitFlags,3  ; disable triggering new wave for next note
+    DefineFlag MusicStopped,BitFlags,4     ; song has been stopped
+    DefineFlag EndOfEnvelope,BitFlags,5    ; at end of non-looping envelope
+    DefineFlag OrderTheChannels,BitFlags,6 ; order channels by priority
+    DefineFlag TiedNote,BitFlags,7         ; next note is tied
+    DefineFlag UserEchoSpec,BitFlags2,0    ; DCOM has substituted default echo
+    DefineFlag CommandQueFull,BitFlags2,1  ; DCOM command que is full
+    DefineFlag TabWORD,BitFlags2,2         ; if set, current envelope is in
+                                           ; WORDS, if clear, BYTES
+    DefineFlag ScanQue,BitFlags2,3         ; if set, DCOM is scanned while
+                                           ; doing fadein, fadeout
+
+    DefineFlag UseEffectDelay,BitFlags2,4   ; if set use delay on current effect
+                                            ; else use noteon/noteoff
+    DefineFlag EnvSpecialFlag,BitFlags2,5   ; reserved for envelope processer
+    DefineFlag SaveTrackMute,BitFlags2,6    ; save track muting info on track
+                                            ; reset
+    DefineFlag DCOMResetFlag,BitFlags2,7    ; FORCE reset instead of doreload
+;-----------------------------------------------------------------
+    DefineFlag BlastPlaying,BitFlags2,7     ; blast effect was started
+    DefineFlag EffectBestMode,BitFlags3,0   ; use best mode when allocation
+                                            ; effect mode
+CurBlastEffect   .ds    1           ; current playing blast effect
+
+;-----------------------------------------------------------------
+
+
+
+;; flags used in allocating channels
+
+
+AllocFlags     .ds    1
+
+    DefineFlag BestChannel,AllocFlags,0    ; when non-zero, use best fit
+    DefineFlag EmptyChannel,AllocFlags,1   ; when non-zero, use empty channel
+                                           ; BestChannel MUST be set also
+    DefineFlag SearchForward,AllocFlags,2  ; search forward when looking
+    DefineFlag StandardChannel,AllocFlags,3       ; Use standard 1 channel search
+                                           ; prempts all of the above flags
+    DefineFlag MutedChannel,AllocFlags,4       ; channel is muted, no allocation
+                                               ; is allowed
+                                           ; prempts all of the above flags
+    DefineFlag LockPriority,AllocFlags,5   ; lock priority on release
+    DefineFlag RotateChannels,AllocFlags,6 ; rotate allocation channels
+                                           ; each time channel is released
+;; combinations of flags for various searches
+
+StandardSearch      equ $08
+StealSearch         equ $04
+BestSearch          equ $05
+EmptySearch         equ $07
+EffectsSearch       equ $00
+BestEffectsSearch   equ $01
+
+EffectsMask    .ds   1   ; effects scan mask as set by music
+EnvArt         .ds   1   ; for envelope articulation in start_env
+ToneEnvArt     .ds   1   ; tone envelope articulation for current sound
+AmpEnvArt      .ds   1   ; amplitude envelope articulation for current sound
+PitchEnvArt    .ds   1   ; pitch envelope articulation for current sound
+StereoEnvArt   .ds   1   ; stereo envelope articulation for current sound
+
+
+     ChannelBytes ChPriority  ; current priority of what channel is doing
+
+    .if RANDOM_SUPPORT
+RndReg         .ds   3   ; 24 bit random shift barrel
+    .endif
+
+BlastAddr   .ds 2
+BlastTemp   .ds 2
+
+
+EffectBlastAddr   .ds 2
+
+
+ArrayPoint	   .ds	 2	 ; used for pointers-to-arrays-of-pointers
+BSN_Point	   .ds	 2	 ; used to point to a sound descriptor
+BFX_Point	   .ds	 2	 ; used to point to BEffect structures
+SourcePnt	   .ds	 2	 ; points to waveform source dir
+EnvBase 	   .ds	 2	 ; used to point at top of Envelope structure
+EnvChNum	   .ds	 1	 ; while looping through voices, current voice#
+EnvSpec 	   .ds	 2	 ; used to point to an envelope spec structure
+EnvPnt		   .ds	 2	 ; working pointer for envelope structures
+EnvRegY        .ds   1   ; index to current envelope variable
+
+
+;; DCOM additional parameter registers
+
+RP0     .ds  1
+RP1     .ds  1
+
+DriverCommand	   .ds	 1	 ; last driver command performed
+DriverParm	   .ds	 2	 ; 16 bit parameter passed with the command
+
+
+
+; Below two vars must be grouped together:
+curslewword	   .ds	 2	 ; working var table slew word
+curslewrate	   .ds	 2	 ; working var table slew rate
+; Above two vars must be grouped together
+
+slewflag	   .ds	 1	 ; working var of envelope slew flag
+last_ticks	   .ds	 1	 ; working var for Advance_Env_Table
+gain_direc	   .ds	 1	 ; working var for gain direction code
+; tempword, tempword2, and tempword3 MUST be contiguous
+tempword       .ds   2   ; all-purpose temp word
+tempword2	   .ds	 2	 ; 2nd all-purpose temp word
+tempword3      .ds   2   ; 3nd all-purpose temp word
+
+;nt_octave      = tempword3  ; holds octave while translating note2pitch
+
+nt_octave      .ds   1   ; holds octave while translating note2pitch
+
+
+;nextcalc       = tempword3   ; used to calculate next note timing
+nextcalc       .ds   2   ; used to calculate next note timing
+
+curenvnote     .ds   2   ; word used by pitch envelope loop only
+wave_restart	   .ds	 1	 ; current wave restart mode
+cur_id		   .ds	 1	 ; when needing BitID a lot, stick it here
+cur_idmask	   .ds	 1	 ; inversion of cur_id can be stuck here
+trigchan	   .ds	 1	 ; internal-remembers channel being triggered
+
+curmodes       .ds   1   ; holds current BSN mode flags
+
+; flag definitions for curmodes
+; taken from BFLAGS definitions above
+
+    DefineFlag  fM_AMP,curmodes,0
+    DefineFlag  fM_TONE,curmodes,1
+    DefineFlag  fM_PITCH,curmodes,2
+    DefineFlag  fM_STEREO,curmodes,3
+    DefineFlag  fM_ECHO,curmodes,4
+    DefineFlag  fM_PITCHMOD,curmodes,5
+    DefineFlag  fM_NONOTE,curmodes,6
+    DefineFlag  fM_ONESHOT,curmodes,7
+
+
+TrigDur        .ds   2   ; parameter UWORD: note duration for trigger
+TrigNote	   .ds	 2	 ; parameter UWORD: base note for trigger
+BFX_Count	   .ds	 1	 ; BEffect count while starting effect
+ChSrchScan	   .ds	 1	 ; used while search channels for eff/mus start
+ChSrchPrior	   .ds	 1	 ; used while search channels for eff/mus start
+ChSrchBit	   .ds	 1	 ; used while search channels for eff/mus start
+PunchAmp	   .ds	 1	 ; 1 bit means punch amplitude directly
+SlurMask   .ds   1   ; 1 bit means slurring on for this waveform
+WaveFinished       .ds   1   ; 1 bit means waveform has finished.
+Chan1Shot	   .ds	 1	 ; 1 bit means that waveform is not looped
+NeedsKON	   .ds	 1	 ; means a non-looped waveform hit finished.
+ForceKON	   .ds	 1	 ; 1 bit means force key on regardless
+KONRqst 	   .ds	 1	 ; 1 bit means new keyed note for this channel
+KONFinal	   .ds	 1	 ; final version of KON for this pass
+WaveFiniMask	   .ds	 1	 ; mask that says we just restarted: ignore
+				 ; wave finish message from hardware
+MasterSongVol      .ds   1 ; volume set by programmer
+MasterEffectsVol   .ds   1 ; volume set by programmer
+MasterSongTranspose .ds  2   ; master transposition for all songs
+WVMRetrig	   .ds	 1	 ; This keeps a copy of the current
+				 ; retrigger wavemode for each voice.
+				 ; If the voice bit is set, the wave will
+				 ; always be retriggered whenever the note is
+				 ; retriggered. If the voice bit is clear,
+				 ; the wave will only be re-triggered if
+				 ; the new wave is different from the old
+				 ; wave.
+fnd_wvmode	   .ds	 1	 ; wavemode flag returned by Get_Chan_Tune
+trig_id 	   .ds	 1	 ; current channel bit id for trig rout
+trig_idmask	   .ds	 1	 ; current inversion of trig_id
+
+
+; 9-22-91
+; Doesn't strictly have to be zero page, but it shortens the code if it is:
+    ChannelBytes ChModes      ; current BSN mode flags
+    ChannelBytes ChBusy       ; see CHBUSY defines for meanings.
+CurEffectNum       .ds   1       ; remembers effect number we're starting or stopping
+    ChannelWords ChDuraCount  ; UWORD duration counts: determines when
+				 ; channel becomes free again.
+				 ; only valid if ChBusy == CHBUSY_EFFECT
+;-----------------------------------------------------------------------
+; Active Music Buffer
+;-----------------------------------------------------------------------
+ActiveBuf0
+		   ; Zero Page Variables for Music:
+BandCount	   .ds	 1   ; number of players in the current song
+BandPlaying	   .ds	 1   ; how many players are still playing
+player_index    .ds  1   ; number of index into Channels for player
+                         ; to be placed in cur_player
+cur_player     .ds   1   ; number of current player being processed
+curmus_trig	   .ds	 1   ; current note command trigger flag
+			     ;
+			     ;
+Song_Pnt	   .ds	 2   ; points to current song structure
+			     ;
+			     ; Indirect pointers for the players:
+    TrackBytes Mel_PntLSB    ; points to the Melody list
+    TrackBytes Mel_PntMSB    ; points to the Melody list
+			     ;
+			     ; 
+    TrackBytes PlayerNCount ; Player's note duration count down
+			     ;
+dura_chan	   .ds	 1   ; Play_Duration's working channel number
+dura_vol	   .ds	 1   ; Play_Duration's working volume number
+			     ;
+
+
+                             ; 189 bytes on zero page
+
+
+SongTempo          .ds   1   ; Master tempo, 1-256 (256=0)
+TempoCount         .ds   1   ; At each tick, says whether music is active.
+
+
+FadeCnt 	   .ds	 1   ; counts fade ticks down
+FadeDir 	   .ds	 1   ; $FF = fade down 1= fade in
+FadeDelta	   .ds	 1   ; how many volumes each fadetick
+
+    ChannelBytes ChAccessID    ; unique ID of item in channel
+                             ; 1-127 reserved for external started effects
+                             ; 128-255 reserved for internal started effects
+
+    ChannelWords ExPitchMod ; external pitch modulation -
+;                          for this wave
+
+
+DQCnt          .ds   1      ; current number of DCOM commands in DCOM que
+DQPnt          .ds   1      ; pointer to next write pos for DCOM command
+DQRd           .ds   1      ; pointer to next readable DCOM command
+
+DriverSN        .ds    1    ; last driver serial number
+
+ActiveEnd0
+ACTIVELNG0	   =	 ActiveEnd0 - ActiveBuf0
+
+
+ .if TIMECHECK != 0
+StartTimeCheck	   .ds	 1
+ .endif
+
+.zpagecheck
+			 .if .zpagecheck > $F0
+			     zero_page_overflow
+			 .endif
+
+
+;-----------------------------------------------------------------------
+
+
+
+;SPECIAL version of BOOT700 for use with the BMUS driver
+
+
+;		   .output "basm"
+
+		   ; BOOT700.ASM
+		   ; by Bill Williams
+		   ;
+		   ; This is a simple program to upload to the SPC700
+		   ; which will initialize the audio hardware and then load
+		   ; in the rest of your driver. It is used to work around
+		   ; the bug in Nintendo's reset system.
+		   ;
+
+;		   .include "snd.i"
+;		   .include "dcom.i"
+
+		   .APUSTART $700
+           .APUBUF $0000,$0e
+
+
+
+;-----------------------------------------------------------------------
+
+	.list
+
+DLADDRESS   =   $FE80   ; where copy of this  code is kept
+		   ;
+		   ; Program Start:
+		   ;
+           .ORG  $700
+
+           mov   X,#0        ; copy the downloader code
+                             ; down for execution
+.copycode
+           mov   A,DownLoader+X
+           mov   DLADDRESS+X,A  ; make copy in high ram
+           mov (X)+,A
+           cmp   X,#DLLength
+		   bcc	 .copycode
+           jmp   $00         ; execute code
+
+		   ; Don't call this routine: call DoReLoad, below!
+		   ;
+		   ; This routine imitates the IPL download procedure,
+		   ; and we'll continue to use it until we figure out some
+		   ; way of re-invoking the IPL! (NOA says it can't be
+		   ; done.)
+		   ;
+		   ; It is position independant code: before use it is copied
+           ; to low page RAM (page 0, since the stack is now invalid).
+		   ;
+		   ; This routine jumps through the program start vector
+		   ; when done: you should re-init the stack and stuff
+		   ; at the start of your program.
+		   ;
+		   ; This code was written by reverse-engineering the
+		   ; procedure used by the CPU uploader. It was NOT
+		   ; copied from the invisible IPL ROM, which they tell
+		   ; me is patented... so leave me alone, Mr. lawyer.
+		   ;
+DownLoader
+.temp1      =   $EF     ;    temporary direct page var used
+		   mov	 PORT0_W,#$AA
+		   mov	 PORT1_W,#$BB
+           mov  A,#$CC  ; first serial number
+.swait1
+           mov .temp1,PORT0_R   ; wait for stablility
+           cmp .temp1,PORT0_R
+           bne .swait1
+           cbne .temp1,.swait1   ; wait for $CC
+.new_block
+           mov A,.temp1
+           mov  <.dummy+1-DownLoader,PORT2_R     ; get address
+           mov  <.dummy+2-DownLoader,PORT3_R     ; get address
+           mov   Y,A             ; save old num for confirm
+           mov   A,PORT1_R
+           mov   CONTROL_W,#PORTCLEARMASK
+           mov   PORT0_W,Y       ; confirm receipt
+		   bne	 .notdone	     ; get finish code?
+           mov   CONTROL_W,#PORTCLEARMASK
+           mov   PORT1_W,Y       ; New Serial Number (0)
+           jmp MUSIC_DRIVER_ADDRESS
+.notdone
+           mov   X,#0
+           mov  A,X
+.wait4serial
+           mov .temp1,PORT0_R    ; wait for stablility
+           cmp .temp1,PORT0_R
+           bne .wait4serial
+           cbne  .temp1,.wait4serial
+.getbyte
+           mov   A,PORT1_R       ; get data
+           mov   CONTROL_W,#PORTCLEARMASK
+           mov   PORT0_W,X           ; confirm receipt
+.dummy  ;           self- modifying code
+           mov   .dummy+X,A      ; store it
+           mov A,X               ; need this later
+           inc X
+           bne .waitchange
+           inc  <.dummy+2-DownLoader   ; move to next location
+.waitchange
+           mov .temp1,PORT0_R       ; wait for stablility
+           cmp .temp1,PORT0_R
+           bne .waitchange
+           cmp   A,.temp1           ; wait for serial number to change
+		   beq	 .waitchange
+           cmp   X,.temp1
+           bne   .new_block
+           mov   A,PORT1_R       ; get data
+           mov   PORT0_W,X           ; confirm receipt
+           bra .dummy               ; and store it
+
+
+DLEnd
+DLLength = DLEnd - DownLoader
+
+
+
+
+
+
+
+
+; following is space ]filler for WolfGang size compatiblitiy
+             .db 'S'
+             .db 'N'
+             .db 'D'
+             .db 'D'
+             .db 'R'
+             .db 'V'
+             .db 'R'
+             .db $01
+             .db $03
+
+             .db 'D'
+             .db 'O'
+             .db 'O'
+             .db 'M'
+             .db ' '
+             .db ' '
+             .db ' '
+             .db ' '
+
+             .db 'R'
+             .db 'A'
+             .db 'N'
+             .db 'D'
+             .db 'Y'
+             .db 'L'
+
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+             .db $00
+             .db $00
+             .db $00
+             .db $00
+
+
+
+
+		   .ORG  $200
+
+; waveform pointers - this is the SourceBlock info
+; used by the hardware to determine startpoint and looppoint addresses.
+; it was separated from the compiler generated table to allow us to manipulate
+; these pointers
+
+WFSrcTable  .ds 40          ; MUST be first, waveform 8 points to SILENCE
+                            ; waveform 9 is used for scratch
+
+; NOTE - these registers MUST be left in current order
+
+HardwareVolumes .ds VOLUMEFADES  ; hardware volume settings - write to these,
+                            ; not too hardware.
+                            ; Entries in this list MUST correspond to
+                            ; entries in HVRegisters below.
+VolLeft =   HardwareVolumes
+VolRight =  HardwareVolumes+8
+EVOLLeft = HardwareVolumes+16
+EVOLRight = HardwareVolumes+17
+EFBFeedBack = HardwareVolumes+18
+MasterVolumeLeft=HardwareVolumes+19
+MasterVolumeRight=HardwareVolumes+20
+
+
+NextWaveFormOffset .ds 1    ; offset for next waveform to startup at
+NextEffectID   .ds 1   ; ID to label next EFFECT for future access
+NextExAmpMod   .ds 1      ;  next ExAmpMod to apply to next effect
+NextExStereoMod   .ds 1   ;  next ExStereoMod to apply to next effect
+NextExPitchMod .ds 2  ; next ExPitchMod to apply to next effect
+FadeTicks      .ds   1   ; non-zero causes fade
+DesiredEVOL	   .ds	 2   ; desired echo volumes before master limiting
+   ChannelBytes ChannelFlags  ; flags for this channel
+NOTEOFFTRIGGER  =   1        ; when set, force into decay
+MNOTEOFFTRIGGER = $fe
+FORCENOTEONOFF  =   2        ; when set, force sound to continue until
+                             ; manually turned off
+MFORCENOTEONOFF = $FD
+   TrackBytes       StackPtr  ; Points into a phrase call stack,
+			     ; to the last item pushed there.
+   TrackBytes PlayWFOffset    ;  players current starting waveform offsets
+   TrackBytes PlayCurNote          ; Player's current note
+   TrackBytes PlayCurVelocity      ; Player's current note velocity
+   TrackBytes PlayCurStereoPan  ; Player's current stereo pan
+   TrackBytes PlayCurPriority   ; Player's current priority
+   TrackBytes PlayMicroToneLSB     ; Player's current microtonal offset
+   TrackBytes PlayMicroToneMSB     ; Player's current microtonal offset
+   TrackBytes PlayCurHWTuneLSB     ; Player's current hardware tune offset
+   TrackBytes PlayCurHWTuneMSB     ; Player's current hardware tune offset
+   TrackBytes PlayCurAmpArt     ; Player's current amp envelope articulation
+   TrackBytes PlayCurPitchArt   ; Player's current pitch envelope articulation
+   TrackBytes PlayCurToneArt    ; Player's current tone envelope articulation
+   TrackBytes PlayCurStereoArt  ; Player's current stereo envelope articulation
+   TrackBytes Player_State      ; current state of each player
+			     ; (see PSTATE_ defines)
+   TrackBytes PlayCurFlags     ; current flags
+
+; defines for above flags
+TRACKMUTED  =   1           ; if set this track is silent
+MTRACKMUTED =  $FE          ; inverse of above
+PRIORITYLOCKED = 2          ; if set, priority on this track not decreased on
+                            ; release
+MPRIORITYLOCKED = $FD       ; inverse of above
+
+
+
+NextEffectAmpArt         .ds   1  ; next effect amp envelope articulation
+NextEffectPitchArt       .ds   1  ; next effect pitch envelope articulation
+NextEffectToneArt        .ds   1  ; next effect tone envelope articulation
+NextEffectStereoArt      .ds   1  ; next effect stereo envelope articulation
+
+
+                             ;
+    ChannelBytes ExAmpMod   ; external amptitude modulation
+    ChannelBytes ExStereoMod  ; external stereo modulation
+
+MonoFlag	   .ds	 1	 ; 50 = mono 0 = stereo
+
+
+
+    EnvelopeVariable EnvTab_TICKFRC ; fractional tick counter value
+    EnvelopeVariable EnvTab_CURTOG ; ++++ current toggle -state should be flag
+    EnvelopeVariable EnvTab_TICKFRCCNT; fractional tick counter
+    EnvelopeVariable EnvTab_TABLENG;  table size (# slots)
+    EnvelopeVariable EnvTab_TICKS;  ticks per slot
+    EnvelopeVariable EnvTab_NEXTTIME;  next time index
+    EnvelopeVariable EnvTab_SUSSTART;  start of sustain index
+    EnvelopeVariable EnvTab_SUSEND;  end of sustain index
+    EnvelopeVariable EnvTab_TABACTIVE; +++ table is active -should be merged
+                                     ; with flags
+    EnvelopeVariable EnvTab_SLEWFLG; +++ slewing is active -should be merged
+                                     ; with flags
+    EnvelopeVariable EnvTab_SPECIAL; +++ stereo toggle -should be merged
+                                     ; with flags
+    EnvelopeVariable EnvTab_TICKCNT    ; current tick counter
+    EnvelopeVariable EnvTab_CURX      ; current location index
+    EnvelopeVariable EnvTab_TOPPNTlsb      ; initial location lsb
+    EnvelopeVariable EnvTab_TOPPNTmsb      ; intial location msb
+    EnvelopeVariable EnvTab_NEXTCNTlsb    ; next tick counter lsb
+    EnvelopeVariable EnvTab_NEXTCNTmsb    ; next tick counter msb
+
+
+;-----------------------------------------------------------------------
+; Active Music Buffer
+;-----------------------------------------------------------------------
+ActiveBuf1
+		   ; Non-zero page variables for Music:
+			     ;
+    TrackBytes PlayEVol       ; Player's current expression volume
+			     ;
+    TrackBytes InstSounds      ; BSN number for this player
+
+
+    TrackBytes PlayCurAllocFlags     ; channel allocation flags for player
+    TrackBytes PlayCurAllocStart     ; first channel allocation for player
+    TrackBytes PlayCurAllocMask     ; channel allocation mask for player
+    TrackBytes PlayChan       ; actual channel allocated and played, FF=none
+
+    TrackBytes FreqOffsetLSB     ; Cumulative for all current transpositions
+    TrackBytes FreqOffsetMSB     ; Cumulative for all current transpositions
+    TrackBytes DetuneLSB         ; Cumulative for all current transpositions
+    TrackBytes DetuneMSB         ; Cumulative for all current transpositions
+ActiveEnd1
+ACTIVELNG1	   =	 ActiveEnd1 - ActiveBuf1
+
+
+;-----------------------------------------------------------------------
+; Save Music Buffers
+;-----------------------------------------------------------------------
+;SaveBuf0       .ds   ACTIVELNG0      ; buffer for saving ActiveBuf0
+;SaveBuf1       .ds   ACTIVELNG1      ; buffer for saving ActiveBuf1
+
+
+F
+FFCount 	   .ds	 2   ; for counting down fastforward
+
+
+
+var_size_chk
+ ;          .nlist
+
+
+
+; aligned pages - each of these pages (FC00 - FFFF) are guarenteed to have
+; the first variables aligned to a page boundary. Checks are performed
+; to make sure it does NOT overlap . This is important for the music stacks
+;************************  FC00 - FCFF page    ********************
+        .ORG    $FC00
+FCCheck
+
+;********************** DATA goes below this point *********
+
+
+        .ds     4       ; for zero echo regions
+                        ; MUST GO FIRST IN THIS BLOCK
+
+;-----------------------------------------------------------------------
+; Music Phrase Call Stacks (1 for each player)
+;-----------------------------------------------------------------------
+
+PhraseStackMax     =     5  ; 5 nesting levels allowed
+
+
+
+; sets up a stack of bytes with NAME, 1 for each track. Use
+;  StackPtr to access
+
+        .macro MusicStack NAME
+\NAME   .ds (PhraseStackMax*MAXTRACKS)
+        .endm
+
+        MusicStack CallCurrentInst
+        MusicStack CallLoopNum
+
+
+
+   ChannelBytes ChGainVector ; last gain vector written to channel
+   ChannelWords ChBaseNote ; current sum of note and transpose values
+				 ; note index numbers: We then add the waveform
+				 ; tune offset and the pitch envelope offset
+				 ; to get the final note index.
+   ChannelBytes ChStereoVal ; current panning value if steroenv turned off
+   ChannelBytes ChWaveVal  ; current wave wanted if toneenv turned off
+   ChannelBytes ChCurWave ; current wave source number
+
+
+FCCheckEnd
+           .if FCCheckEnd >$FCFF
+                Overflow on FC00-FCFF page
+           .endif
+           .if FCCheckEnd <FCCheck
+                Overflow on FC00-FCFF page
+           .endif
+
+;************************  FD00 - FDFF page    ********************
+
+
+        .ORG    $FD00
+FDCheck
+        .ds     4       ; for zero echo regions
+                        ; MUST GO FIRST IN THIS BLOCK
+
+;********************** DATA goes below this point *********
+
+        MusicStack CallPointerMSB
+        MusicStack CallPointerLSB
+
+
+FDCheckEnd
+           .if FDCheckEnd >$FDFF
+                Overflow on FD00-FDFF page
+           .endif
+           .if FDCheckEnd <FDCheck
+                Overflow on FD00-FDFF page
+           .endif
+
+;************************  FE00 - FEFF page    ********************
+        .ORG    $FE00
+FECheck
+;********************** DATA goes below this point *********
+; FE80 - FEFF   reserved for downloader
+; THIS SPACE IS NOT ZEROED ON INIT!!!!
+        MusicStack CallOldVolume
+
+FECheckEnd
+
+           .if FECheckEnd >$FE7F
+                Overflow on FE00-FEFF page
+           .endif
+           .if FECheckEnd <FECheck
+                Overflow on FE00-FEFF page
+           .endif
+
+
+;************************  FF00 - FFFF page    ********************
+        .ORG    $FF00
+FFCheck
+        .ds     4       ; for zero echo regions
+                        ; MUST GO FIRST IN THIS BLOCK
+
+;********************** DATA goes below this point *********
+
+    EnvelopeVariable EnvTab_CURSLEWlsb ; current slew value lsb
+    EnvelopeVariable EnvTab_CURSLEWmsb ; current slew value msb
+    EnvelopeVariable EnvTab_SLEWRATElsb ; current slew rate lsb
+    EnvelopeVariable EnvTab_SLEWRATEmsb ; current slew rate msb
+
+FFCheckEnd
+           .if FFCheckEnd >$FFBF
+                Overflow on FF00-FFFF page
+           .endif
+           .if FFCheckEnd <FFCheck
+                Overflow on FF00-FFFF page
+           .endif
+
+
+
+           .APUBUF $00DC,$0e
+		   ;
+		   ; Program Start:
+		   ;
+           .ORG  (MUSIC_DRIVER_ADDRESS)
+prog_start
+
+
+		   .if var_size_chk > prog_start
+			 too_many_variables
+		   .endif
+
+		   clrp      ; make direct page 0
+		   .DP0
+
+		   mov	 X,#$FF 	     ; reset the stack pointer
+		   mov	 SP,X
+
+
+;djr 6-25-93: attempt to eliminate click/pop on reset bug
+;commented out the following 2 lines
+;after changing $FF->FLG to $3F->FLG.
+;may have been causing pop/click(?)
+;		   mov	 ADR_W,#FLG	 ; turn echo's write capability off
+;		   mov	 DATA_W,#$3F	;DJR 6-25-93: changed to 3f: RES&MUTE cause a click
+
+		   ; clear commports, stop all timers, remove rom:
+; 9-22-91: d7 set to remove IPL rom from top of memory space
+           mov   TIMER0_W,#TIMER0_SPEED
+           mov   TIMER1_W,#TIMER1_SPEED
+           mov   TIMER2_W,#TIMER2_SPEED
+
+           mov   CONTROL_W,#TIMERMASK
+
+; 9-22-91: d7 set to remove IPL rom from top of memory space
+
+		   call  Snd_Init    ; init everything (clears 0 page,too)
+		   mov	 SourcePnt,#<SOURCEDIR	 ; install permanent pointer
+		   mov	 SourcePnt+1,#>SOURCEDIR ; to the wave source direc
+
+
+;          call DoRun1
+
+;           mov A,DriverSN
+;           mov PORT2_W,A         ; write downloaded serial number to port
+           mov PORT2_W,#1         ; write first serial number to port
+           SetFlag ScanQue
+
+           ; Master Driver Execution Loop:
+Forever
+           call QueCommand
+           call CheckCommand     ; see if command available
+           BrFlagClear DriverAlive,Forever  ; only if driver is on
+
+           mov Y,#16            ; do fading stuff
+           call FadeHardwareVolumes
+
+           ; Wait until timer is up, or a driver command comes in.
+.checksong
+           BrFlagSet MusicStopped,.checktick   ; music off, do not parse
+           mov   A,COUNTER1_R        ; get tempo timer value, reset count
+           beq   .checktick
+
+		   ; Advance the music, if this tick is active
+           mov   A, SongTempo    ; Process tempo.
+           beq   .ActiveTick     ; Every tick for maximum tempo.
+           clrc
+           adc   A, TempoCount
+           mov   TempoCount, A   ; Update the count, and process
+           bcc   .checktick             ; music only when it rolls over.
+
+.ActiveTick
+
+        call  ProcessMusic
+.checktick
+           mov   A,COUNTER0_R        ; get timer value, reset count
+           beq Forever
+           call  NewTick         ; execute driver
+		   bra	 Forever	     ; go to next driver tick
+
+; does fading on hardware registers. Set Y to max number of fades allowed per
+; clock2 count. 
+; fading manager - interfaces software to hardware. Causes volume changes to
+; transpire smoother (hopefully)
+; returns number of fade changes done in A  - 0 means no change
+FadeHardwareVolumes
+           mov   A,COUNTER2_R       ; see if time for hardware fading
+           bne   .dofade
+           mov A,#1                 ; return 1 to make sure fades complete
+           ret
+.dofade
+           mov tempword+1,Y
+           mov tempword,#0
+           mov X,#VOLUMEFADES-1        ; index to software volume registers
+.fadeloop
+           mov A,PORT2_R
+           beq .nocommandhere
+           call QueCommand
+.nocommandhere
+           mov Y,tempword+1
+           mov A,HVRegisters+X      ; get DSP address of register to check
+           mov ADR_W,A
+           mov A,HardwareVolumes+X
+           mov tempword2,DATA_R     ; get current DSP value
+.floop
+           cmp A,tempword2
+           beq .nextfade
+;           bpl .decrement
+           bcs .decrement
+           dec  tempword2
+.flp1
+           dec Y
+           bne .floop
+           inc tempword
+           bra .nextfade
+.decrement
+           inc  tempword2
+           bra .flp1
+.nextfade
+           mov DATA_W,tempword2     ; value back to DSP
+           dec X
+           bpl .fadeloop
+           mov A,tempword
+           ret
+
+
+
+		   ; Call this to kill the driver and restart the
+		   ; apu boot procedure.
+DoReset
+          SetFlag DCOMResetFlag     ; do reset
+          bra resetstuff
+DoReLoad
+           ClearFlag DCOMResetFlag  ; need to do a load module
+resetstuff
+           ClearFlag ScanQue        ; no scanning while we shut things
+                                    ; down
+
+           mov   Y,#KILL_ALL_SOUNDS
+           call   StopSound
+           call FadeOut             ; turn main volume down
+
+
+      mov   ADR_W,#FLG      ; kill sound
+      mov   DATA_W,#$3F    ; mute, soft reset
+      BrFlagSet DCOMResetFlag,.ForceReset    ; module not being loaded,
+                                               ; restart driver
+           mov   X,#0        ; copy the downloader code
+                             ; down for execution
+.copycode
+           mov   A,DLADDRESS+X
+           mov (X)+,A
+           cmp   X,#DLLength
+           bcc   .copycode
+;           jmp   $00         ; execute code
+      pcall $FFC0          ; start download, rest of DL code is obsolete
+.ForceReset
+      jmp MUSIC_DRIVER_ADDRESS
+
+
+
+; These two tables decode D (gain distance / 2) into gain increment/decrement
+; rate codes. The current values are good for a driver execution speed of
+; 50 Hz. Calculating procedure:
+;		   tm = driverms * 64
+; (driverms = driver exec speed in milliseconds, currently 20). Then
+;		   t = tm / D
+; (D = gain distance / 2).
+; Find t on NOA time chart page 18, under
+; "Increase Mode Linear". If not directly equal, bump up to the next longest
+; time value.
+
+		   .if TIMER0_SPEED * DRIVERSUBTICKS = 160
+gain_thresh	   .db	 255,214,160,128,107,80,64,54,40,32,27,20,16
+		   .db	 14,11,8,6,5,4,3,2,1
+gain_code	   .db	 $1D,$1C,$1B,$1A,$19,$18,$17,$16,$15
+		   .db	 $14,$13,$12,$11,$10,$0F,$0E,$0D,$0C,$0A,$09,$06,00
+GAINTHRESHLNG	   =	 (gain_code - gain_thresh)
+
+		   .else
+		   REFIGURE_TABLE
+		   .endif
+
+
+
+
+
+; These indexes trade memory for execution speed: they let us get the
+; DSP register address if we have the channel number in X
+; Indexes to quickly refer to DSP ENVX_R registers, indexed to channels:
+ChX_ENVX_R	   .db	 V0+ENVX_R,V1+ENVX_R,V2+ENVX_R,V3+ENVX_R
+		   .DB	 V4+ENVX_R,V5+ENVX_R,V6+ENVX_R,V7+ENVX_R
+; Indexes to quickly refer to DSP GAIN register, indexed to channels:
+ChX_GAIN	   .db	 V0+GAIN,V1+GAIN,V2+GAIN,V3+GAIN
+		   .DB	 V4+GAIN,V5+GAIN,V6+GAIN,V7+GAIN
+; Indexes to quickly refer to DSP SRCN register, indexed to channels:
+ChX_SRCN	   .db	 V0+SRCN,V1+SRCN,V2+SRCN,V3+SRCN
+		   .DB	 V4+SRCN,V5+SRCN,V6+SRCN,V7+SRCN
+; Indexes to quickly refer to DSP PITCHL register, indexed to channels:
+ChX_PITCHL	   .db	 V0+PITCHL,V1+PITCHL,V2+PITCHL,V3+PITCHL
+		   .DB	 V4+PITCHL,V5+PITCHL,V6+PITCHL,V7+PITCHL
+; Indexes to quickly refer to DSP VOLL register, indexed to channels:
+ChX_VOLL
+HVRegisters     ; corresponds to entries in HardwareVolumes above
+                .db   V0+VOLL,V1+VOLL,V2+VOLL,V3+VOLL
+		   .DB	 V4+VOLL,V5+VOLL,V6+VOLL,V7+VOLL
+                .db   V0+VOLR,V1+VOLR,V2+VOLR,V3+VOLR
+           .DB   V4+VOLR,V5+VOLR,V6+VOLR,V7+VOLR
+           .DB   EVOLL,EVOLR,EFB,MVOLL,MVOLR
+ 
+; Bits that refer to voices, for DSP registers that specify all channels
+ChBitID 	   .db	 V0_B,V1_B,V2_B,V3_B,V4_B,V5_B,V6_B,V7_B
+; Bits for clearing those void bits
+ChBitIDMask	   .db	 V0_BM,V1_BM,V2_BM,V3_BM,V4_BM,V5_BM,V6_BM,V7_BM
+
+; These are the registers we poke to load in a new echo environment,
+; indexed to their position in the BEcho structure:
+EchoPokeReg	   .db	 EDL,EVOLL,EVOLR,EFB,C0,C1,C2,C3,C4,C5,C6,C7
+
+		   ; Another driver tick has elapsed: advance everybody's
+		   ; state.
+		   ;
+NewTick
+
+    .if RANDOM_SUPPORT
+		call  Random 	     ; keep shoving the random reg
+    .endif
+
+
+     call  QueCommand       ; go do the command
+
+           mov   wave_restart,#0     ; zero wave restart flag
+		   mov	 ForceKON,#0
+
+		   ; Find out which channels have hit the end of their
+		   ; waveform:
+		   mov	 ADR_W,#ENDX_R
+		   mov	 A,DATA_R	     ; get current bits ended
+;           or    A,WaveFinished      ; add on previous bits
+		   and	 A,WaveFiniMask      ; ignore chans restarted
+; 9-22-91: the operands on the next line were reversed before! duh...
+		   mov	 WaveFinished,A      ; save it
+		   mov	 DATA_W,#0	     ; and clear register bits
+
+		   ; process the tone envelopes:
+		   ; First we find out all the channels that are changing
+		   ; waves, so that we can restart them.
+		   mov	 X,#7		     ; start with channel 7
+;           mov   EnvBase,#<LASTTONEENV
+;           mov   EnvBase+1,#>LASTTONEENV
+ToneEnvLoop
+           call  QueCommand        ;check for a blast download request
+
+
+           mov  EnvChNum,X      ; save out channel number
+
+           mov A,X
+           clrc
+           adc A,#TONEVARINDEX ; set up variable index
+           mov EnvRegY,A
+
+           mov   A,ChBitID+X         ; get current channel ID
+		   mov	 cur_id,A	     ; since we refer to it a lot
+		   eor	 A,#$FF 	     ; and save off inverted version
+		   mov	 cur_idmask,A
+           mov   A,ChModes+X         ; see if env turned on
+           mov   curmodes,A      ; save M_STEREO flag for a sec
+           SetFlag EnvSpecialFlag ; REWAVE on default
+           BrFlagSet fM_TONE,.tone_env_on
+           mov   A,ChWaveVal+X      ; get waveform number
+		   jmp	 .no_env	     ; a tone envelope advance
+.tone_env_on
+           mov Y,EnvRegY
+           mov A,EnvTab_SPECIAL+Y   ; see if rewave is on
+           bne .rewaveisoff
+           ClearFlag EnvSpecialFlag
+.rewaveisoff
+           call  Advance_Env_Table   ; advance the tone envelope
+		   ; we now have "Source Number" in A
+		   mov	 X,EnvChNum	     ; recover channel index
+.no_env
+           cmp   A,ChCurWave+X       ; see if we've changed waves
+           bne   .new_wave
+           ; wave is the same as last time.
+; 9-22-91: additional call to set noise inserted here.
+
+           call  Get_Chan_Tune   ; sets up fnd_wvmode
+; End of 9-22-91 mod
+		   mov	 A,WVMRetrig	 ; see if he wants forced keyoff/keyon
+		   and	 A,KONRqst
+		   and	 A,cur_id
+		   bne	 .set_force_KON
+           bra   .nextwave
+.new_wave	   ; wave is a new one
+
+           mov   ChCurWave+X,A       ; remember the new wave
+		   or	 wave_restart,cur_id ; set restart bit for wave
+           call  Get_Chan_Tune       ; get new tuning information
+		   mov	 A,X		     ; change to word index
+		   asl	 A		     ; for storing tune
+		   mov	 X,A
+		   mov	 A,fnd_tune	   ; save tuning info
+		   mov	 ChCurTune+X,A
+		   mov	 A,fnd_tune+1
+		   mov	 ChCurTune+1+X,A
+		   mov	 X,EnvChNum	     ; recover channel index
+
+		   ; set or reset channel 1-shot status
+		   mov	 A,fnd_wvmode
+		   and	 A,#WVM_LOOPED
+		   beq	 .notlooped
+		   and	 Chan1Shot,cur_idmask	 ; reset 1-shot status
+		   bra	 .fin1shot
+.notlooped
+           or    Chan1Shot,cur_id    ; set 1-shot status
+.fin1shot
+		   ; process retrig wavemode settings
+           BrFlagClear EnvSpecialFlag,.noretrigmode   ; rewave is off tone env
+           mov   A,fnd_wvmode        ; take a look at Retrig mode
+		   and	 A,#WVM_RETRIGGER
+		   beq	 .noretrigmode
+		   or	 WVMRetrig,cur_id    ; set retrigger mode
+		   bra	 .finretrig
+.noretrigmode
+           and   WVMRetrig,cur_idmask    ; reset retrigger mode
+.finretrig
+
+; 9-22-91: noise wavemode settings was removed from here and turned into
+; a subroutine:
+
+
+		   ; see if he wants to force KON for this new wave
+		   mov	 A,WVMRetrig
+		   or	 A,KONRqst
+		   and	 A,cur_id
+;           bne   .set_force_KON
+		   beq	 .nextwave
+
+		   ; enter here to force key on for this channel
+		   ; (entered from oldwave)
+.set_force_KON
+            or    ForceKON,cur_id
+
+		   ; move on to the next channel
+.nextwave
+           dec   X
+		   bmi	 .tonedone
+		   jmp	 ToneEnvLoop
+.tonedone
+
+		   ; Decide which guys get KON'd
+		   mov	 A,KONRqst   ; new note requests for KON
+
+
+           ; record which channels need Key On
+		   and	 A,Chan1Shot	 ; ignore guys that are looped
+		   or	 A,NeedsKON
+		   mov	 NeedsKON,A
+
+
+           and   A,NeedsKON  ; we remove requests that aren't needed
+		   or	 A,ForceKON  ; and add forced KONs
+		   mov	 KONFinal,A
+
+		   ; Now do a KEYOFF for all of the Key-Ons
+		   mov	 ADR_W,#KOF
+		   mov	 DATA_W,A
+
+;;; 6/24/92 stereo envelope processing used to be here. moved below to avoid
+;;; pops caused by sudden channel volume changes-- ned martin
+		   ; process the stereo envelopes:
+		   mov	 X,#7		     ; start with channel 7
+StereoEnvLoop
+           call  QueCommand        ;check for a blast download request
+
+           mov  EnvChNum,X      ; save envelope channel index
+
+           mov   A,ChBitID+X         ; get current channel ID
+           mov   cur_id,A        ; since we refer to it a lot
+
+           mov A,X
+           clrc
+           adc A,#STEREOVARINDEX ; set up variable index
+           mov EnvRegY,A
+
+           mov   A,MonoFlag      ; see if we're in mono operation
+		   bne	 .stereo_env_off     ; if so, MonoFlag should be 50
+		   mov	 A,ChModes+X	     ; see if env turned on
+           mov   curmodes,A      ; save M_STEREO flag for a sec
+           BrFlagSet fM_STEREO,.stereo_env_on
+		   mov	 A,ChStereoVal+X    ; get static stereo value
+		   jmp	 .stereo_env_off
+.stereo_env_on
+           call  Advance_Env_Table   ; advance the stereo envelope
+		   mov	 X,EnvChNum	     ; (recover channel index)
+.stereo_env_off
+           clrc                 ; add in external stereo modulation
+           adc A,ExStereoMod+X
+           bmi .SOverFl
+           bvs .SOverFl
+;           bcs .SOverFl
+           cmp A,#101
+           bmi .NoStereoOVF
+.SOverFl
+           mov A,ExStereoMod+X  ; see if positive or neg
+           bmi .SMinus
+           mov A,#100
+           bra .NoStereoOVF
+.SMinus
+           mov A,#0
+.NoStereoOVF
+
+           mov   Y,A             ; scale volume by percentage
+           mov   A,ChBaseVolume+X    ; get overall volume
+           mov   tempword2,A         ; and save it for inversions
+           mul   YA
+           mov   X,#100          ; divide by 100
+           div   YA,X
+		   ; desired panning state, excluding toggle, is in A
+		   mov	 X,EnvChNum	     ; recover channel index
+
+           BrFlagClear fM_STEREO,.nopantog
+
+           mov   tempword,A      ; save desired state here
+
+
+           push Y           ; ************ NEED TO SAVE Y
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov   A,EnvTab_CURTOG+Y  ; see if we should toggle left or right
+           pop Y
+
+
+           bne   .switchlr
+		   mov	 A,tempword	     ; no switch, recover state
+		   bra	 .nopantog
+.switchlr
+           mov   A,tempword2         ; yes: switch left and right
+		   setc
+		   sbc	 A,tempword
+		   ; desired panning state, including toggle, is now in
+		   ; A
+.nopantog
+           mov   tempword,A      ; hold onto pan state here, too
+           mov VolLeft+X,A       ; set left volume
+		   mov	 A,tempword2	     ; calculate right volume
+           setc
+		   sbc	 A,tempword
+
+           mov VolRight+X,A   ; set right volume
+.next
+		   dec	 X
+		   bmi	 .stereodone
+		   jmp	 StereoEnvLoop
+.stereodone
+		;
+
+
+		   ; process the pitch envelopes:
+		   mov	 X,#7		     ; start with channel 7
+PitchEnvLoop	   
+           call  QueCommand        ;check for a blast download request
+
+
+		mov	 EnvChNum,X	     ; save channel index
+
+        mov A,X
+        clrc
+        adc A,#PITCHVARINDEX ; set up variable index
+        mov EnvRegY,A
+
+        mov   A,ChModes+X         ; get modes flags
+        mov   curmodes,A      ; save M_STEREO flag for a sec
+		   mov	 A,X		     ; switch to X word addressing
+;           mov   Y,A             ; save byte addressing in Y
+		   asl	 A
+		   mov	 X,A
+		   mov	 A,ChBaseNote+1+X    ; grab base note
+		   mov	 curenvnote+1,A
+		   mov	 A,ChBaseNote+X
+		   mov	 curenvnote,A	     ; and stick it here
+
+           BrFlagClear fM_PITCH,.pitch_env_off
+		   ; pitch envelope is on: process it
+		   PUSH  X		     ; save word addressing
+           SetFlag TabWORD   ; this is a word table
+           call  Advance_Env_Table   ; advance the pitch envelope
+           ClearFlag TabWORD    ; restore flag
+		   POP	 X		     ; restore word addressing
+		   addw  YA,curenvnote	     ; add pitch delta to base note
+		   setc 		     ; pitch tables run from 0 to
+		   sbc	 A,#<1200	     ; 2400: subtract 1200 to make
+		   mov	 curenvnote,A	     ; delta range -1200 to +1200
+		   mov	 A,Y
+		   sbc	 A,#>1200
+		   mov	 curenvnote+1,A
+		   ; Now all we need to do is add the waveform tuning
+		   ; information:
+		   ; current note value is in curenvnote
+		   ; X must be WORD index at this point
+.pitch_env_off
+           mov   A,ChCurTune+1+X
+		   mov	 Y,A
+		   mov	 A,ChCurTune+X
+		   addw  YA,curenvnote	     ; add tuning offset to note index
+
+           movw tempword,YA         ; add external tuning modulation
+
+           mov   Y,ExPitchMod+1+X
+           mov   A,ExPitchMod+X
+
+           addw YA,tempword
+
+           BrFlagSet fM_NONOTE,.notrans
+		   call  Note2Pitch	     ; translate to freq
+.notrans
+           movw  tempword,YA     ; add in hardware tuning
+           mov A,EnvChNum        ; word addressing
+           asl A
+           mov X,A
+           mov   A,ChHWCurTune+1+X
+           mov   Y,A
+           mov   A,ChHWCurTune+X
+           addw  YA,tempword
+           mov   X,EnvChNum      ; restore byte addressing in X
+		   mov	 ChFrqL+X,A	     ; save YA out for later
+		   mov	 A,Y		     ; frequency stuffing
+		   mov	 ChFrqH+X,A
+
+           dec   X
+		   bpl	 PitchEnvLoop
+
+
+		   mov	 ADR_W,#KOF	 ; turn the key off state back off
+		   mov	 DATA_W,#0
+
+
+		   ; process the amplitude envelopes and plug in the
+		   ; new wave source numbers and frequency values
+		   ; all at once.
+		   ;
+		   mov	 X,#7		     ; start with channel 7
+AmpEnvLoop	   
+
+           call  QueCommand        ;check for a blast download request
+
+		mov	 EnvChNum,X	     ; save envelope channel number
+
+        mov A,X
+        clrc
+        adc A,#AMPVARINDEX ; set up variable index
+        mov EnvRegY,A
+
+           mov   A,ChBitID+X
+		   mov	 cur_id,A	     ; save current bit id
+		   eor	 A,#$FF
+		   mov	 cur_idmask,A	     ; and inversion
+		   mov	 A,ChModes+X	     ; see if env turned on
+           mov   curmodes,A
+           BrFlagSet fM_AMP,.amp_env_on
+		   mov	 A,ChAmpVal+X	     ; get static amp val
+           mov   Y,A             ; save in Y Y
+           jmp   .amp_env_off
+.amp_env_on
+           call  Advance_Env_Table   ; advance the amplitude envelope
+           mov   Y,A             ; save in Y Y
+		   mov	 X,EnvChNum	     ; get channel index
+           BrFlagClear EndOfEnvelope,.amp_env_off   ; amp envelope done?
+           mov A,#0
+           mov   ChBusy+X,A        ; free up channel
+.amp_env_off
+           mov   A,#CHBUSY_EFFECT
+           cbne  ChBusy+X,.namp_effect  ; if music channel scale to master vol
+           mov A,MasterEffectsVol   ; multiply by fixed point fraction of 1
+           bra .amp_mmul
+.namp_effect
+           mov A,MasterSongVol      ; multiply by fixed point fraction of 1
+.amp_mmul
+           mul YA
+           mov A,ExAmpMod+X         ; include external amplitude modulation
+           mul YA
+           mov A,Y
+           mov   ChTargetGain+X,A    ; save gain in channel target
+           ; Amplitude stuff is finished:
+;.plugsrc
+    ; plug in new source numbers
+    ; already done in Get_Chan_Tune
+;           mov   A,wave_restart
+;           and   A,cur_id
+;           beq   .nowaveplug
+;           mov   A,ChX_SRCN+X        ; get Source DSP reg address
+;           mov   ADR_W,A         ; plug in new source number
+;           mov   A,X
+;           mov   DATA_W,A
+;.nowaveplug
+;###########################################
+; experiment to gather data
+; bra .punchdirect
+;###########################################
+
+           mov   gain_direc,#INCLINEAR_B     ; reset gain direction up
+		   mov	 A,ChX_ENVX_R+X    ; get current ENVX_R value
+		   mov	 ADR_W,A	   ; into the data register
+		   mov	 A,Y		   ; see how far away we are from target
+           setc            ; (leave target in Y)
+		   sbc	 A,DATA_R
+		   bcs	 .headup
+		   mov	 gain_direc,#DECLINEAR_B     ; gain direction down
+		   eor	 A,#$FF 	 ; get absolute value of distance
+		   inc	 A		 ; to travel
+.headup
+           mov tempword3,A      ; save for later
+
+           mov A,cur_id
+           and   A,SlurMask    ; see if slurred, drift on a slur
+           bne .slewpunch
+
+           mov   A,PunchAmp      ; see if we should directly write
+           and   A,cur_id        ; the gain, or send it drifting
+           bne   .punchdirect
+.slewpunch	   ; Send the channel towards his target gain values:
+		   ; (Writing the gain value directly creates terrible
+		   ;  popping noises, so we must use the hardware
+		   ;  increase/decrease gain modes to get to our target value.)
+           mov A,tempword3      ; get difference
+.figgainvector
+           lsr   A       ; divide distance by two
+		   bne	 .findgaincode
+		   cmp	 Y,#0		 ; if heading towards silence,
+		   bne	 .findgaincode	 ; insure that it doesn't stop at 1
+		   mov	 A,#$82
+		   bra	 .isnewvector
+.findgaincode	   ; must head channel towards target value: figure speed
+		   ; of increase/decrease from the value of D/2
+		   mov	 Y,#GAINTHRESHLNG-1
+.comp_gain_loop    cmp	 A,(gain_thresh)+Y	 ; find which threshold
+		   bcc	 .gotthresh		 ; this distance fits into
+		   dbnz  Y,.comp_gain_loop
+.gotthresh
+           mov   A,gain_code+Y       ; get corresponding gain code
+.writegaindirec
+           or    A,gain_direc    ; add gain direction onto value
+		   ; compare this gain vector to the one that's currently
+		   ; valid: if it's the same, don't disturb the sound
+		   ; register
+.isnewvector
+           cmp   A,ChGainVector+X
+		   beq	 .oldvector
+		   mov	 Y,A		 ; save value to write in Y
+           bra .dopunch
+.punchdirect
+; checks put in for click pop relief on attacks 4/16/94
+
+           mov   gain_direc,#0     ; reset gain direction
+           mov A,tempword3      ; get difference
+           cmp A,#96
+           bcc .dopunch ; no problem with transition, just punch it
+           cmp Y,#96    ; fast transition up, take to full volume
+           bcc .checkforzero ;
+            mov Y,#$DF    ; linear increase, 2 ms
+           bra .dopunch
+.checkforzero
+            cmp Y,#32
+            bcs .dopunch        ;
+            mov Y,#$9E         ; linear decrease, 4 ms
+
+.dopunch
+		   and	 PunchAmp,cur_idmask ; clear punch code
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;~~~~~~~~~~~~~ DIRECT WRITES TO AMP REGISTERS!!!!
+; placed here to remove clicks/pops
+; forcing hardware envelope and volumes to be written together
+           mov   A,ChX_VOLL+X
+           mov ADR_W,A
+           mov A,VolLeft+X      ; write to hardware now
+           push A             ; remove clicks from slurs
+           mov A,cur_id
+     and A,SlurMask
+     pop A
+     bne .nodirectwrite
+           mov DATA_W,A
+           inc ADR_W
+           mov A,VolRight+X
+           mov DATA_W,A
+.nodirectwrite
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+           mov   A,ChX_GAIN+X    ; get register index
+		   mov	 ADR_W,A	 ; poke new gain vector into channel
+           mov   DATA_W,Y
+		   mov	 A,Y		 ; remember the gain vector we wrote
+		   mov	 ChGainVector+X,A
+.oldvector
+
+		   ; plug in frequency values
+		   mov	 A,ChX_PITCHL+X
+		   mov	 ADR_W,A
+		   mov	 Y,A
+		   mov	 A,ChFrqL+X
+		   mov	 DATA_W,A
+		   inc	 Y
+		   mov	 ADR_W,Y
+		   mov	 A,ChFrqH+X
+		   mov	 DATA_W,A
+
+.next_targ
+		   dec	 X
+		   bmi	 .ampdone
+		   jmp	 AmpEnvLoop
+.ampdone
+
+		   ; do KONs that are needed
+		   mov	 ADR_W,#KON
+		   mov	 DATA_W,KONFinal
+
+
+		   ; Clear status bits for waves restarted
+		   mov	 A,KONFinal
+		   eor	 A,#$FF
+		   mov	 WaveFiniMask,A
+		   and	 WaveFinished,WaveFiniMask
+		   and	 NeedsKON,WaveFiniMask
+
+		   mov	 KONRqst,#0
+
+           call  QueCommand       ; go do the command
+
+;;; 6/24/92 stereo envelope processing moved here (after KON request) to
+;;; avoid pops caused by sudden channel volume changes. the theory is that
+;;; since all samples start with silence, volume changes done after sample
+;;; has just started will just be jumps in silence, and inaudible. pops
+;;; were apparently caused before by large volume changes affecting sample
+;;; data from last sample still in the DAC. this was mainly a problem for
+;;; playing a loud sound effect over soft music-- ned martin
+
+
+		   ; Now take care of recording channel's completion
+		   ; This is either done by waveend (for oneover type
+		   ; effects) or by the end of the duration count.
+		   ;
+           mov   Y,#7        ; byte addressing
+           mov   X,#14       ; word addressing
+Chan_Fini_Loop
+           call QueCommand
+           mov   A,ChBusy+Y  ; check busy state
+		   beq	 .next_chan_fini     ; not busy? skip
+           mov   A,ChModes+Y         ; check operation modes
+           mov   curmodes,A      ; save M_STEREO flag for a sec
+           BrFlagClear,fM_ONESHOT,.no1shot
+           mov   A,ChBitID+Y         ; yes. see if voice done.
+		   and	 A,WaveFinished
+		   bne	 .make_chan_free     ; chan done?
+;           bra   .next_chan_fini     ; no, skip this one
+		   ; if this is not a one-over effect, we'll
+		   ; count duration time until it's free
+.no1shot
+           mov A,ChBusy+Y        ; only watch this on effects
+           cmp A,#CHBUSY_EFFECT
+           bne .next_chan_fini
+           mov A,ChannelFlags+Y     ; see if locked into note on/off
+           and A,#FORCENOTEONOFF
+           bne .next_chan_fini
+;           mov   A,ChDuraCount+X     ; decrement count
+;           setc
+;           sbc   A,#1
+;           mov   ChDuraCount+X,A
+;           mov   tempword,A
+;           mov   A,ChDuraCount+1+X
+;           sbc   A,#0
+;           mov   ChDuraCount+1+X,A
+;           or    A,tempword      ; see if we've hit zero
+           DecDP.W ChDuraCount+X      ; decrement count
+           Test.W  ChDuraCount+X      ; see if zero
+
+           bne   .next_chan_fini
+.make_chan_free
+
+; COMMENT IN LINES BELOW to make channel free at end of duration
+;           mov   A,#0      ; make the channel free
+;           mov   ChBusy+Y,A
+
+
+;
+; COMMENT OUT LINES BELOW to make channel free at end of duration
+
+
+           mov A,#CHBUSY_EFFECT     ; reduce priority
+           call ReducePriority
+
+; may still be running at this point, do NOT clear ID
+;           mov   ChAccessID+Y,A     ; clear access id's
+.next_chan_fini
+           dec   X
+           dec   X
+           dec   Y
+		   bpl	 Chan_Fini_Loop
+
+           call  QueCommand        ;check for a blast download request
+
+		   ; Are we doing master volume fade?
+		   mov	 Y,FadeTicks
+		   beq	 .nofade
+;           dec   FadeCnt     ; yes. decrement count
+;           bne   .nofade
+           dbnz   FadeCnt,.nofade ; replace last two instructions
+		   mov	 FadeCnt,Y   ; time up: do a fade inc/dec
+           mov   A,MasterVolumeLeft
+		   mov	 X,FadeDir
+		   bmi	 .fadedown
+		   clrc
+		   adc	 A,FadeDelta
+		   bcs	 .topvol
+		   cmp	 A,#FULL_VOLUME
+		   bcc	 .storevol
+.topvol 	   mov	 A,#FULL_VOLUME      ; stop at full volume
+		   bra	 .endfade
+.fadedown	   setc
+		   sbc	 A,FadeDelta
+		   beq	 .endfade
+		   bcs	 .storevol
+		   mov	 A,#0		 ; hit bottom?
+.endfade	   mov	 Y,#0		 ; kill the fading flag
+		   mov	 FadeTicks,Y
+.storevol
+		   mov	 X,A		 ; The echo volumes have to be set
+;           mov   ADR_W,#EVOLL    ; to whichever is smaller
+		   cmp	 A,DesiredEVOL
+		   bcc	 .evoll
+		   mov	 A,DesiredEVOL
+.evoll
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           mov EVOLLeft,A
+;           mov   DATA_W,A
+;           mov   ADR_W,#EVOLR
+		   mov	 A,X
+           mov MasterVolumeLeft,A
+           mov MasterVolumeRight,A
+           cmp   A,DesiredEVOL+1
+		   bcc	 .evolr
+           mov   A,DesiredEVOL+1
+.evolr
+;           mov   DATA_W,A
+;~~~~~~~~~~
+           mov EVOLRight,A
+;           mov   ADR_W,#MVOLL        ; now set master vols
+;           mov   DATA_W,X
+
+;           mov   ADR_W,#MVOLR
+;           mov   DATA_W,X
+           mov   A, FadeTicks
+		   bne   .nofade           ; did we just finish a fade?
+           TestFlag StopAfterFade  ; Yes.
+           bcc   .nofade           ; FadeAndStop ?
+		   mov	 Y,#KILL_ALL_SOUNDS
+           jmp   StopSound
+
+.nofade
+		   ret
+
+
+
+CheckCommand
+           ClearFlag   CommandQueFull
+           mov A,DQCnt ; any commands?
+           beq .ccdone
+           dec A
+           mov DQCnt,A
+           mov X,DQRd   ; pointer to current DCOM command
+           mov A,DQCommand+X ; empty que into current command
+           and A,#$FE       ; make sure LSB is clear
+           mov DriverCommand,A
+           mov A,DQParm1+X
+           mov DriverParm,A
+           mov A,DQParm2+X
+           mov DriverParm+1,A
+           inc X            ; now bump que
+           cmp X,#MAXDQ     ; see if wrapping q
+           bne .nowrap
+           mov X,#0
+.nowrap
+           mov DQRd,X
+         ; now execute command
+           mov A,DriverCommand
+           mov   X,A             ; get vector number in X
+           and A,#$FE            ; mask it off
+           cmp   X,#(DCOM_MAX_COMMAND+1) ; make sure it's a good command
+           bcs   .ccdone
+           mov   A,DriverParm        ; pass parameter in YA
+           mov   Y,DriverParm+1
+           call .DoIt
+.ccdone
+           ret
+.DoIt
+           jmp   [DCom_Vectors-2+X]  ; (first command is 2)
+
+
+
+; read bytes from APU back to 816 through ports
+
+DebugReadBytes
+          push Y
+          push X
+          movw YA,PORT0_R      ; get address from ports
+          movw BlastAddr,YA
+          mov X,PORT2_R         ; get serial number
+          mov   CONTROL_W,#CONTROLMASK     ; clear ports
+          mov Y,#0
+          mov A,[BlastAddr]+Y     ; data to ports
+          mov PORT0_W,A
+          inc Y
+          mov A,[BlastAddr]+Y     ; data to ports
+          mov PORT1_W,A
+          inc Y
+          mov A,[BlastAddr]+Y     ; data to ports
+          mov PORT3_W,A
+          mov PORT2_W,X         ; do ack
+          pop X
+          pop Y
+          pop A
+          ret
+
+QueCommand
+           BrFlagClear ScanQue,.noque   ; command scanning off
+           cmp PORT2_R,Zero     ; que command coming in?
+           beq .noque           ; no, return ASAP
+           cmp PORT2_R,DriverSN ; serial number changed?
+           beq .noque           ; no, return
+           push A
+
+.stabilize
+           mov A,PORT2_R    ; see if command is available
+           beq .paque       ; no command, return
+           cbne PORT2_R,.paque ; not stable, return
+           mov A,PORT3_R    ; fetch command
+
+          cmp  A,#DCOM_SLOW_BLAST ; slow blast command
+          beq blastit        ;   process blast command
+
+           BrFlagSet CommandQueFull,.paque ; return if Que is full
+
+           mov DriverSN,PORT2_R ; save new serial number
+
+; blast stuff gets processed immediatly
+           bra .checkslowblast
+
+.dotheack
+          mov A,PORT2_R
+          mov   CONTROL_W,#CONTROLMASK
+          mov PORT2_W,A
+.paque
+          pop A         ; done
+.noque
+          ret
+
+
+;##################################################
+
+.checkslowblast
+          cmp A,#DCOM_DEBUG ; read bytes to port
+;          beq .DebugReadDSP
+          beq DebugReadBytes
+          cmp A,#DCOM_RESET    ; reset driver
+          bne .checkload
+          jmp DoReset           ; force reset of driver
+.checkload
+          cmp A,#DCOM_RELOAD    ; load module
+          bne .checkrun
+;$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+;          mov PORT0_W,#$AA      ; set up ports in advance
+;          mov PORT1_W,#$BB
+
+
+          jmp DoReLoad
+
+
+
+.checkrun
+          cmp A,#DCOM_RUN       ; run module, needs late ACK
+          bne .toque
+          push X
+          push Y
+          mov A,PORT2_R        ; get ACK
+          mov   CONTROL_W,#CONTROLMASK
+;          mov PORT2_W,A     ; do ack     !!!!!!!!!!!!!!!!!!!! EARLY
+          push A               ; save  ACJ
+          ClearFlag ScanQue     ; not during DoRun
+          call DoRun            ; initialize echo etc.
+          SetFlag ScanQue
+          pop A
+          mov PORT2_W,A     ; do ack
+          pop Y
+          bra .qret3
+.toque
+          push X
+          mov X,DQPnt       ; current Q pointer
+          mov DQCommand+X,A ; save command
+          mov A,PORT0_R     ; fetch parm1
+          mov DQParm1+X,A
+          mov A,PORT1_R     ; fetch parm2
+          mov DQParm2+X,A
+          mov A,PORT2_R     ; send ack
+                            ; clear ports without starting timer
+          mov   CONTROL_W,#CONTROLMASK
+          mov PORT2_W,A
+          inc X             ; bump pointer
+          cmp X,#MAXDQ      ; pointing to end of Que?
+          bne .notend
+          mov X,#0
+.notend
+          mov DQPnt,X
+          mov A,DQCnt       ; bump Q counter
+          inc A
+          mov DQCnt,A
+          cmp A,#MAXDQ      ; que full?
+          bne .qret3        ; yes, flag as full so we can run at full speed
+          SetFlag CommandQueFull
+.qret3
+           pop  X
+.qret1
+           pop  A
+.qret2
+            jmp QueCommand  ; see if anything else comming in
+
+           ret
+
+;################# Slow Blast Stuff **************
+;;; ***** RANDY'S FORMAT ********
+
+
+
+blastit
+    push Y
+	push X
+
+    mov DriverSN,PORT2_R ; save new serial number
+
+.blastsetaddress
+
+;** the slow stuff is done here as this happens only at the beginning of
+;** each packet
+
+
+    movw YA,PORT0_R  ; get blast address
+    movw BlastAddr,YA   ; keep track of this
+    mov X,PORT2_R   ; do ack
+    mov PORT2_W,X
+    cmp Y,#0
+    beq .blastdone   ; blast is done when this is zero
+    mov Y,#0    ; zero index
+
+
+; X has old ser number at this point, used to watch for change
+
+.GetInput
+    cmp X,PORT2_R       ; wait for port to change
+    beq .GetInput
+
+.PortChanged
+
+    ;  read ports now
+
+    mov  A,PORT0_R                                          ; 3
+    mov [BlastAddr]+Y,A   ; LSB Out                         ; 7
+    mov  A,PORT1_R                                          ; 3
+    inc  Y                                                  ; 2
+    mov [BlastAddr]+Y,A   ; LSB Out                         ; 7
+    mov  A,PORT3_R      ; get MSB                           ; 3
+    mov  X,PORT2_R      ; ack                               ; 3
+    bmi .blastsetaddress  ; new address coming down or done ; 4
+    mov PORT2_W,X                                           ; 4
+    inc Y                                                   ; 2
+    mov [BlastAddr]+Y,A  ; write MSB out                    ; 7
+    inc Y
+    bra .GetInput                                           ; 6
+
+.blastdone
+
+    mov A,PORT2_R
+    mov   CONTROL_W,#CONTROLMASK     ; clear ports
+    mov PORT2_W,A   ; do ack
+
+    pop X
+	pop Y
+	pop A
+            jmp QueCommand  ; see if anything else comming in
+
+    ret
+;##############################################
+
+DoRun
+;7-14-93 DJR: sometimes upon reset, the very first sound is preceded by a 
+;click/pop - so I put the echo-buffer init BEFORE the turning on of echoing.
+;    ret
+
+DoRun1
+
+;DJR 6-25-93: attempt to fix pop\click upon reset: instead of setting 
+;main_volume to FULL_VOLUME in Snd_Init, it is faded in upon starting the
+;driver (here).
+;^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ REMOVED - FADEIN DONE IN SND_INIT
+
+           call    EchoInit    ;7-14-93 DJR
+
+;        mov A,#1    ;ticks
+;        mov Y,#8    ;delta
+;        mov X,#1    ;direction
+
+
+           call FadeIn
+
+;        call    StartFadeIn
+
+        SetFlag DriverAlive    ; tell driver it's OK
+
+ .if TIMECHECK != 0
+ mov StartTimeCheck,#1
+ .endif
+;7-13-93 DJR: moved to beginning of DoRun routine
+;7-13-93	   jmp	 EchoInit		 ; (borr. rts) clear echo
+		ret			;7-13-93 DJR: we now need a RET
+
+
+StereoMode
+           mov   MonoFlag,A  ; set/reset mono flag
+		   ret
+StopFade
+           mov   A,#0        ; stop fadein or fadeout
+		   mov	 FadeTicks,A
+		   ret
+StartFadeIn
+           mov   X,#1        ; start fading in
+           ClearFlag StopAfterFade
+		   bra	 StartFade
+StartFadeOut
+
+           mov   X,#$FF      ; start fading out
+StartFade
+
+           mov   FadeTicks,A
+		   mov	 FadeCnt,A
+		   mov	 FadeDelta,Y
+		   mov	 FadeDir,X
+           ret
+
+
+
+DoStartContEffect
+            push A                    ; save effect number
+            mov A,Y                   ; get ID number
+            and A,#127                ; mask off, other ID's are used by driver
+            mov NextEffectID,A
+            pop A
+            ClearFlag UseEffectDelay ; use note on/off
+            bra DoStartEffect1
+
+StartStereoEffect
+            mov NextExStereoMod,Y   ; set stereo pan for effect
+DoStartEffect
+           SetFlag  UseEffectDelay  ; uses effect delay
+DoStartEffect1
+		   jmp	StartEffect
+
+DoStartSong	   ; get song number to start
+
+		   call  StartSong
+           mov   A,FASTFORWARD   ; now fastforward song
+		   mov	 FFCount,A
+		   mov	 A,FASTFORWARD+1
+		   mov	 FFCount+1,A
+		   or	 A,FFCount
+		   beq	 .nofast
+.fastforw
+           call  ProcessMusic    ; zip forward in the music
+		   mov	 A,FFCount
+		   setc
+		   sbc	 A,#1
+		   mov	 FFCount,A
+		   mov	 A,FFCount+1
+		   sbc	 A,#0
+		   mov	 FFCount+1,A
+		   bcs	 .fastforw
+		   mov	 X,#7
+		   mov	 A,#0	 ; zero out base volumes of all channels
+.shutup
+           mov   ChBaseVolume+X,A
+		   dec	 X
+		   bpl	 .shutup
+
+.nofast 	   ret
+
+
+           ; Stops a song
+StopSong
+           mov Y,#KILL_ALL_MUSIC
+
+		   ; Stops various channels in various ways. See DCOM.I
+		   ; for description. Y must have high byte of parameter
+		   ;
+StopSound
+		   mov	 X,#7
+           cmp Y,#KILL_ALL_SOUNDS
+           beq .stopmusic
+           cmp Y,#KILL_ALL_MUSIC
+           bne .nostopmusic
+.stopmusic
+           SetFlag MusicStopped ; to send NOTEOFF's to everything running
+           mov   BandPlaying,#0
+           mov EffectsMask,#$FF       ; all channels enabled for effects
+.nostopmusic
+           mov   CurEffectNum,A  ; remember effect to kill
+.stoploop
+           cmp   Y,#KILL_ALL_SOUNDS
+           beq   .stopsound
+           mov A,ChAccessID+X       ; get current ID code
+           cmp A,#$FF               ; no one on channel right now
+           beq .nextstop
+           cmp A,#0     ; 128 - 254 is music
+           bpl .seeeffects          ; music shutoff here
+           cmp Y,#KILL_ALL_MUSIC    ; kill music only?
+           beq .stopsound           ;
+           bra .nextstop
+.seeeffects         ; we know this sound belongs to an effect now
+           cmp Y,#KILL_EFFECT
+           bne .stopsound   ; kill all effects
+           mov A,ChEffect+X   ; effect which owns this channel
+           cmp A,CurEffectNum   ; current effect?
+           bne .nextstop
+
+; 9-22-91 kill gain while killing waveform, too:
+.stopsound
+           mov   A,ChX_GAIN+X    ; get register index
+           mov   ADR_W,A     ; get ready to set gain
+
+
+;DJR 6-25-93: instead of instantaneously killing the sound, do a very fast
+;rampdown using hardware
+
+           mov   DATA_W,#FASTRAMP    ; zero gain
+
+           mov   A,ChX_SRCN+X        ; get Source DSP reg address
+;           mov   ADR_W,A         ; plug in new source number
+;           mov   DATA_W,#SilenceWF  ; plug in silent waveform
+                         
+;10-29-91 also zero static ampval DJR, via BW
+           mov   A,#0        ; kill the effect
+           mov   ChAmpVal+X,A
+           mov   ChBusy+X,A  ; and channel is free
+           mov   ChModes+X,A     ; turn off envelopes
+;            mov VolRight+X,A
+;            mov VolLeft+X,A
+
+
+           mov   A,ChBitID+X         ; get channel bit ID mask
+           or    A,KONRqst   ; get silent wave restart
+           mov   KONRqst,A
+.nextstop
+           dec   X
+		   bpl	 .stoploop
+           ret
+
+JustFadeOut
+           ClearFlag StopAfterFade
+		   jmp   StartFadeOut
+
+FadeAndStop
+           SetFlag StopAfterFade
+		   jmp   StartFadeOut
+
+
+		   ; Start up an effect structure, with stereo override.
+		   ; Entry:
+		   ;	   Y = stereo override, 0-100
+		   ;
+
+		   ; Start up an effect structure.
+		   ; Entry:
+		   ;	   A = number of effect to start
+		   ;
+		   ; Exit:
+		   ;	     Everything squashed.
+StartEffect
+           mov   Y,#BFXBASE
+		   mov	 CurEffectNum,A      ; remember effect you're starting
+		   call  FindItem
+		   movw  BFX_Point,YA	     ; save top of struct here
+		   mov	 Y,#0		     ; find out how many BEffect
+		   mov	 A,[BFX_Point]+Y     ; structure are here
+		   mov	 BFX_Count,A
+		   incw  BFX_Point	     ; point to first structure
+.EffectLoop	   ; search for a channel to play:
+		   mov	 Y,#BFX_CHANSCAN
+		   mov	 A,[BFX_Point]+Y
+           and   A,EffectsMask  ; set by music to block some effects
+		   mov	 ChSrchScan,A
+           mov   Y,#BFX_PRIORITY
+		   mov	 A,[BFX_Point]+Y
+		   mov	 ChSrchPrior,A
+           mov   ChSrchBit,#$80
+		   mov	 X,#7
+		   call  FindChannel
+           bpl   .ud2   ; couldn't find channel? skip this one
+           jmp   .next_BFX   ; couldn't find channel? skip this one
+.ud2
+           BrFlagSet UseEffectDelay,.ud0 ; continuous effect
+           mov A,#FORCENOTEONOFF   ; force effect to use delay
+           or A,ChannelFlags+X
+           bra .ud1
+.ud0
+           mov A,#MFORCENOTEONOFF   ; force effect to use delay
+           and A,ChannelFlags+X
+.ud1
+           mov ChannelFlags+X,A
+
+           mov   A,#CHBUSY_EFFECT  ; record that channel is busy
+		   mov	 ChBusy+X,A
+           mov   A,NextEffectID ; remember ID of effect it is doing
+           mov   ChAccessID+X,A
+           mov   A,NextExAmpMod ; place in amplitdude modulation
+           mov   ExAmpMod+X,A
+           mov   A,NextExStereoMod ; place in stereo modulation
+           mov   ExStereoMod+X,A
+           mov   A,NextEffectAmpArt ; place in amp articulation
+           mov AmpEnvArt,A
+           mov   A,NextEffectToneArt ; place in tone articulation
+           mov ToneEnvArt,A
+           mov   A,NextEffectPitchArt ; place in pitch articulation
+           mov PitchEnvArt,A
+           mov   A,NextEffectStereoArt ; place in stereo articulation
+           mov StereoEnvArt,A
+           mov A,X              ; set to word addressing
+           asl A
+           mov Y,A
+           mov A,#0             ; reset hardware tuning
+           mov ChHWCurTune+Y,A
+           mov ChHWCurTune+1+Y,A
+           mov NextWaveFormOffset,A ; waveform offsets not valid in effects
+           mov   A,NextExPitchMod ; place in pitch modulation
+           mov   ExPitchMod+Y,A
+           mov   A,NextExPitchMod+1 ; place in pitch modulation
+           mov   ExPitchMod+1+Y,A
+
+           mov   A,CurEffectNum    ; remember which effect its doing
+		   mov	 ChEffect+X,A
+		   ; call to trigger channel: channel to trigger is in X
+		   mov	 Y,#BFX_DURATION     ; get duration
+		   mov	 A,[BFX_Point]+Y
+		   mov	 TrigDur,A
+		   inc	 Y
+		   mov	 A,[BFX_Point]+Y
+		   mov	 TrigDur+1,A
+		   mov	 Y,#BFX_NOTE
+		   mov	 A,[BFX_Point]+Y
+		   mov	 TrigNote,A
+		   inc	 Y
+		   mov	 A,[BFX_Point]+Y
+		   mov	 TrigNote+1,A
+		   mov	 Y,#BFX_VOL
+		   mov	 A,[BFX_Point]+Y
+		   PUSH  A
+		   mov	 Y,#BFX_SOUND
+		   mov	 A,[BFX_Point]+Y
+           SetFlag ThisIsAnEffect
+		   POP	 Y
+           ClearFlag NoWaveRetrigger    ; reset note retrigger
+           call TriggerSound
+		   ; move on to next BEffect structure
+
+.next_BFX	   clrc
+		   adc	 BFX_Point,#BFX_STRUCT_SIZE	 ; (depending on
+		   bcc	 .samepage			 ;  size < 256 bytes)
+		   inc	 BFX_Point+1
+.samepage
+           dec   BFX_Count       ; one more BEffect processed
+           beq .EffectsDone
+           jmp   .EffectLoop
+.EffectsDone
+;           dbnz   BFX_Count,.EffectLoop ; replace last 2 instructions
+           mov A,#0
+           mov   NextEffectID,A ; zero ID
+           mov   NextExPitchMod,A ; zero pitch mod
+           mov   NextExPitchMod+1,A ; zero pitch mod
+           mov   NextExStereoMod,A ; zero stereo mod
+           mov NextEffectAmpArt,A
+           mov NextEffectToneArt,A
+           mov NextEffectPitchArt,A
+           mov NextEffectStereoArt,A
+           dec A
+           mov   NextExAmpMod,A ; amp mod to full
+		   ret
+
+
+		   ; Searches for a channel to use: will work with either
+		   ; effects of music.
+		   ;
+		   ; Entry:
+		   ;	     ChSrchScan = Bits showing which channels are
+		   ;			  eligible for use.
+		   ;	     ChSrchPrior = Priority of this effect (make
+		   ;			   this 64 for music search)
+		   ;	     ChSrchBit = Starting Bit to search from.
+		   ;	     X	       = Corresponding channel for that bit
+		   ;
+		   ; Exit:
+		   ;	     Status Flag Negative if could not find a channel
+		   ;	     Status Flag Positive if it did.
+		   ;	     X = channel number found
+		   ;	     ChSrchBit = bit corresponding to that channel
+		   ;
+
+;;;;;;;DJR 4/26/93
+;;;;;;;Don't just find the first of less or equal priority: scan for the BEST
+;;;;;;;channel to use. BEST=Unused, if none unused then lowest priority that
+;;;;;;;is less than or equal to the effect to be started.
+
+
+
+ChBest		   .equ	 tempword
+ChPriorityBest	   .equ	 tempword+1
+
+FindChannel
+           mov   AllocFlags,#BestEffectsSearch   ; set flags for effects search
+           BrFlagSet EffectBestMode,FindAChannel    ; best mode used
+           mov   AllocFlags,#EffectsSearch   ; set flags for effects search
+
+FindAChannel
+           BrFlagSet MutedChannel,nochannels  ; muted channel?
+           mov   Y,#7
+		   mov	 ChBest,#$FF	 ;init best search channel (none)
+		   mov	 ChPriorityBest,#$FF	 ;init best search prioriy (high)
+           BrFlagClear StandardChannel,.srchloop  ; standard channel to find?
+           cmp  X,#8
+           bcs nochannels       ; no standard channels if >=8
+           mov   Y,#0
+           bra .stdentrance
+.srchloop
+           call QueCommand
+           mov   A,ChSrchBit
+		   and	 A,ChSrchScan	 ; allowed channel?
+		   beq	 .nxtsrch
+.stdentrance
+		   mov	 A,ChBusy+X	 ; channel not busy? use it
+           beq   gotchannel1
+		   mov	 A,ChSrchPrior	 ; pre-emptable priority?
+
+
+;        .if OLDSRCH=1
+
+           BrFlagSet BestChannel,.cmpbch  ; best channel to find?
+
+           cmp   A,ChPriority+X
+           bcs   gotchannel2
+           bra .cmpbch1
+
+;        .else
+.cmpbch
+           cmp   A,ChPriority+X
+          beq    .nxtsrch
+           bcc   .nxtsrch
+;this channel is acceptable. Is it the better than any previous one we found?
+		   mov	 A,ChPriority+X	 ;this channel's current priority
+		   cmp	 A,ChPriorityBest;is it a new best?
+		   bcs	 .nxtsrch
+		   mov	 ChPriorityBest,A;remembr new best priority
+		   mov	 ChBest,X	 ;and remember its channel number
+
+;        .endif
+
+.cmpbch1
+
+.nxtsrch
+           BrFlagClear SearchForward,.dwnsrch  ; which direction are we going
+           asl   ChSrchBit   ; try another channel
+           bne   .nowrapu
+           mov   ChSrchBit,#1  ; wrap around to start again
+           mov   X,#$FF
+.nowrapu
+           inc   X
+           bra .lpagain
+
+.dwnsrch
+           lsr   ChSrchBit   ; try another channel
+		   bne	 .nowrap
+		   mov	 ChSrchBit,#$80  ; wrap around to start again
+		   mov	 X,#8
+.nowrap
+           dec   X
+
+
+.lpagain
+		   dec	 Y
+		   bpl	 .srchloop
+
+;        .if OLDSRCH=1
+           BrFlagSet BestChannel,cmpbch2
+nochannels
+           mov A,#$FF
+           ret           ; return with negative flag
+
+;        .else
+cmpbch2
+;if we got to here then we didn't find an unused channel - did we find a
+;"best" acceptable channel?
+
+		   mov	 X,ChBest	  ;the best channel
+           bmi   nochannels
+
+;        .endif
+
+		   ; found a channel we can use:
+gotchannel1
+gotchannel2
+           BrFlagClear EmptyChannel,.notempty    ; empty channel only?
+           mov A,ChBusy+X       ; is this being used?
+           bne nochannels           ; yes, forget it
+.notempty
+           mov   A,ChSrchPrior
+           mov   ChPriority+X,A  ; save new channel priority
+		   mov	 A,#0		 ; set positive flag
+		   ret
+
+
+
+
+		   ; Starts up a sound in a channel.
+		   ;
+		   ; Entry:
+		   ;	     A = Sound descriptor number (BSN #)
+		   ;	     X = Channel to start this sound in
+		   ;	     Y = Base volume to use
+		   ;	     TrigDur(W) = Duration of note in driver ticks
+		   ;	     TrigNote(W) = Base note to trigger
+		   ;
+		   ; Exit:
+		   ;	     Just about everything squashed.
+		   ;
+TriggerSound
+           mov EnvChNum,X       ; save enveloping channel number
+           mov   trigchan,X      ; save channel number
+		   PUSH  A		     ; hold onto snd number for a sec
+           mov A,ChannelFlags+X
+           and A,#MNOTEOFFTRIGGER
+           mov ChannelFlags+X,A   ; note is going ON, cancel trigger off
+;;; yet another try to fix the pops 7/10/92-- ned martin
+;;; 7/11/92-- seems to work. this fix used to be up in FindChannel to
+;;; fix sound effects. to fix music as well, I moved it here, since both
+;;; effects and music call this routine to set up the envelopes and stuff.
+;;; the idea is to send the amplitude volume of the currently-playing sample
+;;; toward 0. sound effects samples won't be started up until the next call
+;;; to NewTick, so there should be plenty of time for the amplitude to
+;;; drop. the music processor is called as the first part of NewTick, so
+;;; there won't be as much time, but maybe enough...
+
+;;; 7/11/92-- this seems to screw up sound effects that use the
+;;; note override feature. this shows up especially in roger clemens
+;;; baseball with the fly ball sound. so put a check in for use of
+;;; the note override feature. currently commented out
+
+
+;;;; ***********************************
+
+           BrFlagSet NoWaveRetrigger,.skip_fix ; slur handler
+           mov   A,ChX_GAIN+X    ; get register index for gain
+           mov   ADR_W,A     ;
+           mov   DATA_W,#FASTRAMP     ; set maximum linear decrease
+
+.skip_fix
+
+;;; end of fix 7/10/92
+
+		   mov	 A,Y		     ; save base volume
+		   mov	 ChBaseVolume+X,A
+		   mov	 A,X		     ; save base note
+		   asl	 A		     ; (switch to word addressing)
+		   mov	 X,A
+		   mov	 A,TrigNote
+		   mov	 ChBaseNote+X,A
+		   mov	 A,TrigNote+1
+		   mov	 ChBaseNote+1+X,A
+		   mov	 A,TrigDur	     ; save duration count
+		   mov	 ChDuraCount+X,A
+		   mov	 A,TrigDur+1
+		   mov	 ChDuraCount+1+X,A
+		   POP	 A		     ; recover snd number
+		   mov	 Y,#BSNBASE	     ; get address of sound descriptor
+		   call  FindItem
+		   movw  BSN_Point,YA
+
+		   mov	 X,trigchan
+		   mov	 A,ChBitID+X	     ; get channel bit ID mask
+		   mov	 trig_id,A
+		   eor	 A,#$FF 	     ; and store inversion, too
+		   mov	 trig_idmask,A
+           mov   A,SlurMask     ; set up slurring mask
+           BrFlagSet NoWaveRetrigger,.sluron
+           and   A,ChBitIDMask+X    ; clear slurring flag
+           bra .setslur
+.sluron
+           or A,ChBitID+X
+.setslur
+           mov SlurMask,A
+
+		   mov	 Y,#BSN_MODES	     ; get his mode flags
+		   mov	 A,[BSN_Point]+Y
+
+		   mov	 ChModes+X,A	     ; save permanently
+		   mov	 curmodes,A	     ; save in local temp, too
+
+		   ; Take care of hardware pitch modulation:
+
+           mov   ADR_W,#PMON
+           and   A,#M_PITCHMOD       ; see if hardware pitch mod is on
+		   beq	 .resetpmod
+           or    DATA_W,trig_id      ; turn pitch mod on
+		   bra	 .storpmod
+.resetpmod
+           and   DATA_W,trig_idmask  ; turn pitch mod off
+.storpmod
+
+
+		   ; Plug in any echo environments:
+
+
+;;;; ***********************************
+           BrFlagSet NoWaveRetrigger,.no_new_echo      ; slur handler
+           bcs .no_new_echo
+           BrFlagClear fM_ECHO,.noecho
+           BrFlagClear UserEchoSpec,.usedefaultecho
+           mov A,NextEchoSpec   ; use DCOM set echo spec
+           bra .findecho
+.usedefaultecho
+		   mov	 Y,#BSN_ECHO	     ; get pointer to echo spec
+		   mov	 A,[BSN_Point]+Y
+.findecho
+           mov   Y,#ECHOSPECBASE
+		   call  FindItem
+		   mov	 Y,#0		     ; load up the new echo environs
+.loadecho
+           mov   A,EchoPokeReg+Y     ; set address of register to poke
+		   mov	 ADR_W,A
+		   mov	 A,[EnvSpec]+Y	     ; get value and poke it
+		   cmp	 Y,#1		     ; is this one of the volumes?
+		   beq	 .limitvol
+           cmp   Y,#3
+           beq .writesfreg
+		   cmp	 Y,#2
+		   bne	 .nolimit
+.limitvol
+           mov   DesiredEVOL-1+Y,A   ; save the desired echo volume
+           cmp   A,MasterVolumeLeft      ; limit it to the master volume
+           bcc   .writesfreg
+           mov   A,MasterVolumeLeft
+.writesfreg
+           mov  EVOLLeft-1+Y,A
+           bra .skipload
+.nolimit
+           mov   DATA_W,A
+.skipload
+		   inc	 Y		     ; loop until structure transferred
+           cmp   Y,#BEC_STRUCT_SIZE
+		   bcc	 .loadecho
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+; echo switch write ON placed here to reduce clicks and pops
+; was in EchoInit
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;           mov   ADR_W,#FLG  ; see if  write capability already on
+;           mov A,DATA_W
+;           and A,#$20
+;           beq .echoalreadyon
+
+;           mov   A,ARRAYBASE+ECHOBASE+1  ; get variable echo page
+;           mov   ADR_W,#ESA      ; set echo start address
+;           mov   DATA_W,A
+
+;           mov   ADR_W,#FLG  ; turn echo's write capability on
+;           mov A,#$DF        ; mask off Write On flag
+;           and A,DATA_R
+;           mov DATA_W,A     ; echo write is now on
+
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.echoalreadyon
+
+           mov   ADR_W,#EON
+           or    DATA_W,trig_id   ; turn echo on
+		   bra	 .storecho
+.noecho
+           mov   ADR_W,#EON
+           and   DATA_W,trig_idmask  ; turn echo off
+.storecho
+
+
+.no_new_echo
+		   ; Re-Trigger the amp envelope:
+           mov   A,trigchan      ; set up variable index
+           clrc
+           adc A,#AMPVARINDEX
+           mov EnvRegY,A
+           mov   Y,#BSN_AMP      ; get amp val
+		   mov	 A,[BSN_Point]+Y
+           BrFlagSet fM_AMP,.amp_env_on
+		   mov	 X,trigchan
+		   mov	 ChAmpVal+X,A	     ; store static value
+		   jmp	 .no_amp_env
+.amp_env_on
+           mov   Y,#AMPENVBASE       ; Find amplitude envelope addr
+		   call  FindItem
+           mov   EnvArt,AmpEnvArt ; set amplitude envelope articulation
+		   call  Start_Env_Table     ; and start the envelope
+.no_amp_env
+
+		   ; Re-Trigger the pitch envelope:
+           mov   A,trigchan      ; set up variable index
+           clrc
+           adc A,#PITCHVARINDEX
+           mov EnvRegY,A
+           BrFlagClear fM_PITCH,.no_pitch_env
+		   mov	 Y,#BSN_PITCH
+		   mov	 A,[BSN_Point]+Y
+		   mov	 Y,#PITCHENVBASE     ; Find pitch envelope addr
+		   call  FindItem
+           mov   EnvArt,PitchEnvArt ; set pitch envelope articulation
+           SetFlag TabWORD       ; pitch tables are always words
+           call  Start_Env_Table     ; and start the envelope
+           ClearFlag TabWORD         ; reset flag
+.no_pitch_env
+
+		   ; Re-Trigger the stereo envelope:
+
+           mov   A,trigchan      ; set up variable index
+           clrc
+           adc A,#STEREOVARINDEX
+           mov EnvRegY,A
+
+           BrFlagSet NoWaveRetrigger,.no_new_wave  ; slur handler
+		   mov	 Y,#BSN_STEREO	     ; get amp val
+		   mov	 A,[BSN_Point]+Y
+           BrFlagSet fM_STEREO,.stereo_env_on
+           mov   X,trigchan
+		   mov	 ChStereoVal+X,A     ; store static value
+		   jmp	 .stereo_off
+		   ; stereo envelope is on: get envelope number
+.stereo_env_on
+           mov   Y,#STEREOENVBASE    ; Find stereo envelope addr
+		   call  FindItem
+           mov   EnvArt,StereoEnvArt ; set stereo envelope articulation
+		   call  Start_Env_Table     ; and start the envelope
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov  A,EnvTab_SPECIAL+Y   ; check panning toggle flag
+		   beq	 .pantogoff	     ; no toggling? force current off
+           mov  A,EnvTab_CURTOG+Y   ; get current toggle state
+		   bne	 .pantogoff	     ; and invert it
+		   mov	 A,#$FF
+		   jmp	 .pantogon
+.pantogoff
+           mov   A,#0
+.pantogon
+           mov EnvTab_CURTOG+Y,A ; write toggle state
+.stereo_off
+		   ; See if this sound has a tone envelope
+           mov   A,trigchan      ; set up variable index
+           clrc
+           adc A,#TONEVARINDEX
+           mov EnvRegY,A
+           mov   Y,#BSN_TONE         ; get amp val
+		   mov	 A,[BSN_Point]+Y
+           BrFlagSet fM_TONE,.tone_env_on
+           mov   X,trigchan
+           mov   ChWaveVal+X,A      ; save static waveform number
+		   jmp	 .no_tone_env
+		   ; Re-Trigger the tone envelope:
+.tone_env_on
+           mov   Y,#TONEENVBASE      ; Find tone envelope addr
+		   call  FindItem
+           mov   EnvArt,ToneEnvArt ; set tone envelope articulation
+           call  Start_Env_Table     ; and start the envelope
+.no_tone_env
+		   ; Anounce new note request:
+		   ; Request wave restart for this channel
+		   ; (might be over-ridden if Retrig wavemode is FALSE
+		   ;  and the wave is the same as last.)
+		   ; also requests KON, which will only be performed if
+		   ; necessary.
+           or    KONRqst,trig_id
+		   or	 PunchAmp,trig_id     ; tell him to punch amp direct
+					     ; for the first time
+.no_new_wave
+           ClearFlag NoWaveRetrigger   ; reset note retrigger
+		   ret
+
+
+		   ; This routine is used to fetch an item address
+		   ; (like the address of a particular envelope) from
+		   ; the current arrays of pointers.
+		   ;
+		   ; Entry:
+		   ;	     A = item number to find
+		   ;	     Y = Index number of Array Base (word index)
+		   ;		 Example: #AMPENVBASE, #STEREOENVBASE, etc.
+		   ; Exit:
+		   ;	     EnvSpec(W) = item address
+		   ;	     A = low byte of item address.
+		   ;	     Y = high byte of item address.
+		   ;	     (So if you want it stored somewhere else than
+		   ;	      EnvSpec, you can store YA after call.)
+		   ;
+		   ;	     X preserved.
+		   ;	     ArrayPoint(W) squashed.
+		   ;
+FindItem
+
+           call QueCommand
+           mov   ArrayPoint+1,#0     ; find item address
+		   asl	 A		     ; multiply item # times 2
+		   rol	 ArrayPoint+1
+		   clrc 		     ; then add  to the desired
+		   adc	 A,ARRAYBASE+Y	     ; item base
+		   mov	 ArrayPoint,A
+		   mov	 A,ArrayPoint+1
+		   adc	 A,(ARRAYBASE+1)+Y
+		   mov	 ArrayPoint+1,A
+		   mov	 Y,#1
+		   mov	 A,[ArrayPoint]+Y
+		   mov	 EnvSpec+1,A
+		   dec	 Y
+		   mov	 A,[ArrayPoint]+Y
+		   mov	 EnvSpec,A
+		   mov	 Y,EnvSpec+1
+		   ret
+
+
+; DQ stuff MUST be in driverspace for SNDINIT to work
+
+DQCommand  .ds MAXDQ    ; DCOM command Que
+DQParm1    .ds MAXDQ    ; DCOM parameter1 Que
+DQParm2    .ds MAXDQ    ; DCOM parameter2 Que
+
+
+
+           ; General initialization of sound registers
+		   ;
+Snd_Init
+           call FadeOut
+
+           mov   X,#<DSP_Init_Tab
+		   mov	 Y,#>DSP_Init_Tab
+		   call  Write_Tab_DSP
+
+           mov A,#0     ; zero registers
+           mov X,A
+           mov Y,A
+
+		   ; zero out the zero page
+.zerozero
+           mov   $100+X,A
+           mov (X)+,A
+           cmp   X,#$F0
+		   bcc	 .zerozero
+           mov X,A
+
+           ; zero out working vars
+.zerochanvar
+           mov $200+X,A
+           mov $300+X,A
+           mov $400+X,A
+           mov $500+X,A
+           mov $600+X,A
+           mov $FC00+X,A
+           mov $FD00+X,A
+;           mov $FE00+X,A    ; don't zap variable space here -- reserved
+           mov $FF00+X,A
+           inc X
+           bne .zerochanvar
+
+            ; initialize zero page
+
+           mov A,#$FF       ; get $FF into A
+           mov   WaveFinished,A   ; all waves are finished
+		   mov	 NeedsKON,A	      ; all need Key On
+		   mov	 WVMRetrig,A
+		   mov	 Chan1Shot,A
+		   mov	 WaveFiniMask,A
+           mov MasterSongVol,A    ; set initial song volume to max
+           mov MasterEffectsVol,A    ; set initial effects volume to max
+           mov NextExAmpMod,A       ; initial external volume to max
+           mov MinusOne,A           ; set up $FFFF constant
+           mov MinusOne+1,A           ; set up $FFFF constant
+           mov EffectsMask,A       ; all channels enabled for effects
+           SetFlag MusicStopped    ; music is off right now
+
+
+		   ret
+
+;end DJR 6-25-93
+
+
+; fade out all volumes
+
+FadeOut
+    mov X,#VOLUMEFADES-1    ; zero all virtual faders first
+    mov A,#0
+.zloop
+    mov HardwareVolumes+X,A
+    dec X
+    bpl .zloop
+FadeAndWait
+
+;$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+    mov tempword,#16
+.floop
+;$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+    mov Y,#16
+    call FadeHardwareVolumes  ; fade til no change
+    cmp A,#0
+
+;$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+     beq .done
+     dec tempword
+     bne FadeAndWait
+;$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+;    bne FadeAndWait
+
+;$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+.done
+;$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+    ret
+
+; fade in main volume
+
+FadeIn
+    mov A,#FULL_VOLUME
+    mov MasterVolumeLeft,A
+    mov MasterVolumeRight,A
+    bra FadeAndWait
+
+
+
+
+
+
+           ; Initialization of echo area: this is
+		   ; called when the driver receives the run command.
+
+
+
+
+EchoInit
+; this stuff moved here to reduce clicks and pops
+;
+           mov   A,ARRAYBASE+ECHOBASE+1  ; get variable echo page
+           mov   ADR_W,#ESA      ; set echo start address
+           mov   DATA_W,A
+           cmp   A,#$FF     ; any echo specified?
+           beq .noecho
+           mov   Ind0+1,A    ; now zero out the pages
+		   mov	 A,#0
+		   mov	 Y,A
+		   mov	 Ind0,A
+.clrloop
+           mov   [Ind0]+Y,A  ; clear pages until you
+		   dbnz  Y,.clrloop	 ; wrap around to 0
+;           call QueCommand
+		   inc	 Ind0+1
+           cmp  Ind0+1,#$FC ; till upper bounds of echo reached
+		   bne	 .clrloop
+
+           mov   ADR_W,#FLG  ; turn echo's write capability on
+           mov A,#$DF        ; mask off Write On flag
+           and A,DATA_R
+           mov DATA_W,A     ; echo write is now on
+
+
+.noecho
+           ret
+
+
+		   ; Writes a table of values into the DSP regisers.
+		   ; The table should be of the form R,D
+		   ;	 where R = the DSP register address
+		   ;	       D = the value to write to that address
+		   ; The table should end with a R value of $FF.
+		   ; Table can be up to 256 bytes long.
+		   ; Entry:
+		   ;	     X = low byte of table address
+		   ;	     Y = high byte of table address
+		   ; Exit:
+		   ;	  Nothing preserved, Ind0 squashed.
+		   ;	  Ind0 squashed.
+		   ;
+Write_Tab_DSP	   mov	 Ind0,X      ; plug table address into indirect var
+		   mov	 Ind0+1,Y
+		   mov	 Y,#0
+.loop		   mov	 A,[Ind0]+Y
+		   cmp	 A,#$FF      ; end of table?
+		   beq	 .exit
+		   mov	 ADR_W,A     ; no, write the register address
+		   inc	 Y
+		   mov	 A,[Ind0]+Y
+		   mov	 DATA_W,A    ; write the register data
+		   inc	 Y
+		   bne	 .loop
+.exit		   ret
+
+		   ; Table for initializing DSP registers:
+		   ; (Passed to Write_Tab_DSP.)
+		   ;
+DSP_Init_Tab
+;DJR 6-25-93: RES&MUTE cause clicks, so don't do either
+;;;		   .db	 FLG,$FF	     ; reset chip, mute on
+           .db   NON,0           ; no noise
+           .db   EON,0           ; no echo
+           .db   EFB,0           ; no echo  feedback
+		   .db	 EDL,0		     ; echo length
+           .db   V0+C0,0         ; echo filter coefficient
+           .db   V0+C1,0         ; echo filter coefficient
+           .db   V0+C2,0         ; echo filter coefficient
+           .db   V0+C3,0         ; echo filter coefficient
+           .db   V0+C4,0         ; echo filter coefficient
+           .db   V0+C5,0         ; echo filter coefficient
+           .db   V0+C6,0         ; echo filter coefficient
+           .db   V0+C7,0         ; echo filter coefficient
+           .db   ESA,>ECHOZEROREGION ; echo region
+           .db   EVOLL,0         ; echo volume left and right
+           .db   EVOLR,0
+           .db   MVOLL,0       ; main volume left
+           .db   MVOLR,0       ; main volume right
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;           .db   DIR,>SOURCEDIR      ; source directory address
+           .db   DIR,>WFSrcTable      ; source directory address
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           .db   KOF,0           ; no key off
+		   .db	 PMON,0 	     ; no pitch modulation
+           .db   V0+SRCN,8       ; 0 SRCN (silence)
+           .db   V1+SRCN,8       ; 0 SRCN
+           .db   V2+SRCN,8       ; 0 SRCN
+           .db   V3+SRCN,8       ; 0 SRCN
+           .db   V4+SRCN,8       ; 0 SRCN
+           .db   V5+SRCN,8       ; 0 SRCN
+           .db   V6+SRCN,8       ; 0 SRCN
+           .db   V7+SRCN,8       ; 0 SRCN
+           .db   V0+GAIN,0       ; 0 gain
+           .db   V1+GAIN,0       ; 0 gain
+           .db   V2+GAIN,0       ; 0 gain
+           .db   V3+GAIN,0       ; 0 gain
+           .db   V4+GAIN,0       ; 0 gain
+           .db   V5+GAIN,0       ; 0 gain
+           .db   V6+GAIN,0       ; 0 gain
+           .db   V7+GAIN,0       ; 0 gain
+           .db   V0+ADSR1,GAINMODE_B ; direct gain mode
+;           .db   V0+GAIN,$9F       ; to 0 gain 2 msec
+           .db   V1+ADSR1,GAINMODE_B ; direct gain mode
+;           .db   V1+GAIN,$9F       ; to 0 gain 2 msec
+           .db   V2+ADSR1,GAINMODE_B ; direct gain mode
+;           .db   V2+GAIN,$9F       ; to 0 gain 2 msec
+           .db   V3+ADSR1,GAINMODE_B ; direct gain mode
+;           .db   V3+GAIN,$9F       ; to 0 gain 2 msec
+           .db   V4+ADSR1,GAINMODE_B ; direct gain mode
+;           .db   V4+GAIN,$9F       ; to 0 gain 2 msec
+           .db   V5+ADSR1,GAINMODE_B ; direct gain mode
+;           .db   V5+GAIN,$9F       ; to 0 gain 2 msec
+           .db   V6+ADSR1,GAINMODE_B ; direct gain mode
+;           .db   V6+GAIN,$9F       ; to 0 gain 2 msec
+           .db   V7+ADSR1,GAINMODE_B ; direct gain mode
+;           .db   V7+GAIN,$9F       ; to 0 gain 2 msec
+           .db   ENDX_CLR,0      ; clear waveform end flags
+;           .db   KON,$FF         ; start silence
+;           .db   FLG,$3F         ; reset chip, mute on
+					     ; (Experimental: try to improve
+					     ;	the sound init.)
+
+;DJR 6-25-93: instead of instantly setting main volume, ramp it up (in DoRun)
+;		   .db	 MVOLL,FULL_VOLUME   ; main volume left
+;		   .db	 MVOLR,FULL_VOLUME   ; main volume right
+
+
+;;;;		   .db	 FLG,0		     ; mute off
+		   .db	 $FF
+
+		   ; Start an envelope table:
+		   ;
+		   ; This function will re-initialize an Envelope_Table
+		   ; structure to start at the top.
+		   ;
+		   ; Entry:
+           ;         TrigDur = Note duration (in driver ticks)
+		   ;
+		   ;	     (EnvSpec) should point to the top of the
+		   ;		       Envelope_Table_Spec structure.
+		   ;		       (The table you want to play)
+		   ;
+           ;         EnvRegY should be set up to index correct EnvelopeVariable
+           ;         EnvArt contains articulation value for envelope
+           ;         TabWORD flag should be set for word tables, clear for
+           ;         byte tables
+           ;
+           ;
+           ;
+           ;
+		   ; Exit:
+		   ;	     X, EnvBase(W), EnvSpec(W), Preserved.
+           ;         A,Y, tempword(W), nextcalc(W) squashed.
+		   ;
+Start_Env_Table
+           call QueCommand   ; added for speed on 816 side %%%
+           mov X,EnvRegY             ; get index for this envelope
+; copy static data over
+           mov   Y,#ENVSPEC_STRUCT_SIZE-1
+
+           mov   A,[EnvSpec]+Y
+           mov   EnvTab_SPECIAL+X,A     ; copy SPECIAL field over
+
+           dec Y
+
+;           mov   A,[EnvSpec]+Y
+;           mov   EnvTab_TABWORD+X,A     ; copy TABWORD field over
+; ***** ignore TABWORD field
+           dec Y
+
+           mov   A,[EnvSpec]+Y
+           mov   EnvTab_TABLENG+X,A     ; copy TABLENG field over
+
+           dec Y
+
+           mov   A,[EnvSpec]+Y
+           mov   EnvTab_SLEWFLG+X,A     ; copy SLEWFLG field over
+
+           dec Y
+
+           mov   A,[EnvSpec]+Y
+           mov   EnvTab_TICKS+X,A     ; copy TICKS field over
+
+           dec Y
+
+           mov   A,[EnvSpec]+Y
+           mov   EnvTab_NEXTTIME+X,A     ; copy NEXTTIME field over
+
+           dec Y
+
+           mov   A,[EnvSpec]+Y
+           mov   EnvTab_SUSEND+X,A     ; copy SUSEND field over
+
+           dec Y
+
+           mov   A,[EnvSpec]+Y
+           mov   EnvTab_SUSSTART+X,A     ; copy SUSSTART field over
+
+		   ; Now figure the table data top location, which
+		   ; follows the EnvSpec structure, and store it (so
+		   ; we just have to figure it once).
+
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov   A,EnvSpec
+		   clrc
+		   adc	 A,#<ENVSPEC_STRUCT_SIZE
+           mov EnvTab_TOPPNTlsb+Y,A
+		   mov	 A,EnvSpec+1
+		   adc	 A,#>ENVSPEC_STRUCT_SIZE
+           mov EnvTab_TOPPNTmsb+Y,A
+		   ; calculate next-note countdown:
+		   ; multiply Nexttime * slotticks
+           mov A,EnvTab_TICKS+Y ; calculate next-note countdown starting with
+                                ; ticks per slot
+
+; adjust ENVTAB_TICKS for envelope articulation
+    mov X,#0      ; zero this for now
+    mov Y,EnvArt  ; multiply by envelope articulation
+    beq .EnvArtNotZero  ; zero, accept current value
+    mul YA
+    mov tempword,Y  ; so we can divide by 32
+    mov tempword+1,A ; save for later
+    mov X,#5
+.ShLp
+    lsr tempword
+    ror A
+    dec X
+    bne .ShLp
+    mov Y,tempword
+    cmp Y,#0      ; check overflow
+    bne .EnvOutOfRange
+    cmp A,#0
+    beq .EnvIsZero
+    mov X,tempword+1    ; recover fraction
+    bra .EnvArtNotZero
+.EnvOutOfRange
+    mov X,#1            ; zero fraction
+    mov A,#255
+    bra .EnvArtNotZero
+.EnvIsZero
+    mov X,A             ; zero fraction
+    inc A               ; zero not allowed here
+.EnvArtNotZero
+    mov Y,EnvRegY             ; load Y with correct variable index
+    mov EnvTab_TICKS+Y,A      ; place back in envelope
+    mov A,X                    ; get fractional part
+    eor A,#$ff                 ; invert
+    or A,#$E0                  ; to 1/32 skip
+    mov EnvTab_TICKFRC+Y,A    ; initialize fractional part of envelope
+    mov A,#$FF                  ; initialize fractional counter
+    mov EnvTab_TICKFRCCNT+Y,A
+
+           call QueCommand
+
+
+           mov   X,A
+           mov A,EnvTab_NEXTTIME+Y ; from next-note time
+           mov   Y,A
+		   mov	 A,X
+		   mul	 YA	     ; NextTime * slotticks
+		   ; now subtract duration from that
+		   movw  nextcalc,YA
+
+           BrFlagSet ThisIsAnEffect,.noscale   ; notes use NOTEON/NOTEOFF
+
+
+        movw YA,MinusOne    ; largest env value possible
+        movw nextcalc,YA
+        bra .skipit
+
+.noscale
+        movw YA,TrigDur      ; get the tigger duration
+		   subw  YA,nextcalc
+           bcs   .noovr
+;           mov   A,#0        ; if overflow, make it one
+;           mov   Y,A         ; high byte of 0
+;           inc A            ; zero not allowed
+           movw YA,TrigDur  ; just use delay time for next note time
+.noovr
+           mov   nextcalc+1,Y    ; save resulting countdown
+.skipit
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov EnvTab_NEXTCNTlsb+Y,A
+		   mov	 A,nextcalc+1
+           mov EnvTab_NEXTCNTmsb+Y,A
+           mov A,EnvTab_TICKS+Y   ; initialize tick countdown
+		   inc	 A		   ; allow for first tick
+           bne  .EnvNotOVF
+           dec A
+.EnvNotOVF
+           mov EnvTab_TICKCNT+Y,A  ; tickcnt to memory
+		   cmp	 A,#3		     ; if slotticks < 2, cancel
+		   bcs	 .multiticks	     ; slewing mode (because it
+		   mov	 A,#0
+           mov EnvTab_SLEWFLG+Y,A    ; wastes alot of exec time
+.multiticks
+		   mov	 A,#1		     ; set table active flag  (A=1)
+           mov EnvTab_TABACTIVE+Y,A
+           dec   A           ; zero curX  (A = 0)
+           mov EnvTab_CURX+Y,A
+           mov EnvTab_SLEWRATElsb+Y,A ; zero slew rate
+           mov EnvTab_SLEWRATEmsb+Y,A ; zero slew rate
+		   mov	 slewflag,A	 ; always jump to first value,
+		   jmp	 GetTabVal	 ; regardless of slewmode
+					 ; **** BORROW RET ****
+
+
+		   ; Advance an envelope table:
+		   ;
+		   ; This function will advance the working pointers and
+		   ; variables of an Envelope_Table structure for one
+		   ; driver tick's worth.
+		   ;
+		   ; Entry:
+           ;         EnvRegY should be set up to index correct EnvelopeVariable
+           ;         TabWORD flag should be set for word tables, clear for
+           ;         byte tables
+           ;
+		   ; Exit:
+		   ;	     A = Current slewed value of table
+		   ;		 (Or low byte of value if a UWORD table)
+		   ;	     Y = High byte of slewed value of table
+		   ;		 if a UWORD table, otherwise 0.
+		   ;
+           ;         EndOfEnvelope flag is set if table is inactive, cleared
+           ;         otherwise.
+		   ;	     X, (EnvPnt), tempword(W), (nextcalc) squashed.
+		   ;
+		   ;
+Advance_Env_Table
+;           call QueCommand   ; added for speed on 816 side %%%
+           mov Y,EnvRegY              ; set index to correct envelope variables
+           ClearFlag EndOfEnvelope    ; indicate envelope is not done
+           mov A,EnvTab_SLEWFLG+Y   ; is slewing on?
+		   mov	 slewflag,A
+           mov A,EnvTab_TABACTIVE+Y  ; see if table is still active
+		   beq	 .tabledone
+		   ; Slot-Tick Manipulation:
+           mov A,EnvTab_TICKFRC+Y
+           clrc
+           adc  A,EnvTab_TICKFRCCNT+Y  ; update fractional tick count
+           mov EnvTab_TICKFRCCNT+Y,A   ; back to envelope
+           bcc .frcmoreticks          ; not time for normal tick countdown
+           mov A,EnvTab_TICKCNT+Y    ; get current tick countdown
+		   mov	 last_ticks,A	     ; save old value before dec
+		   beq	 .ticksup
+		   dec	 A		     ; decrement tick count
+		   bne	 .moreticks
+.ticksup
+           mov A,EnvTab_TICKS+Y      ; refresh tick count with ticks value
+.moreticks
+           mov EnvTab_TICKCNT+Y,A    ; update tick count with A
+		   cmp	 last_ticks,#2	     ; time to advance slot?
+		   bcc	 .time2adv	     ; (last_ticks would be 0 or 1 then)
+.togetval
+           jmp   .getval         ;  otherwise, get current value
+.frcmoreticks
+           mov slewflag,#0
+           bra .togetval
+           ; Time to Advance The Slot:
+.time2adv
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov A,EnvTab_CURX+Y       ; get current slot index
+		   inc	 A		     ; increment it
+           cmp A,EnvTab_TABLENG+Y    ; and see if at end of table
+           bcc   .Envmore2do
+		   dec	 A
+           cmp   A,EnvTab_SUSEND+Y
+           bne .lskp1
+.lskp2
+           jmp   .sus_reloop         ; if so, repeat sustain forever
+.lskp1
+           mov   A,#0            ; nope: table is done
+           mov EnvTab_TABACTIVE+Y,A ; store zero to signal table is done
+.tabledone	   ; just return the last slewed value of the table:
+           SetFlag EndOfEnvelope    ; indicate envelope is done
+           mov A,EnvTab_CURSLEWmsb+Y
+		   PUSH  A
+           mov A,EnvTab_CURSLEWlsb+Y
+		   POP	 Y
+           jmp CheckDiv
+.Envmore2do       ; Slot not at end of table:
+           mov EnvTab_CURX+Y,A       ; store incremented slot index
+
+           ; See if it's time for the next-note jump
+		   ; If the counter is already zero, that means that
+		   ; the sustain portion has already been finished.
+
+           mov A,EnvTab_NEXTCNTmsb+Y  ; first see if sustain word is finished (=0)
+           or   A,EnvTab_NEXTCNTlsb+Y
+           beq  .no_sustain ; both bytes zero, sustain done
+           mov X,EnvChNum
+           mov A,ChannelFlags+X
+           and A,#FORCENOTEONOFF   ; notes on/off used here?
+           beq  .notecntEffect      ; no, use delay
+           mov   A,#CHBUSY_MUSIC
+           cmp  A,ChBusy+X  ; notes use MusicStopped, nothing else does
+           bne .skipmstopped
+           BrFlagSet MusicStopped,.forcemusicoff ; force noteoff's on music stopped
+.skipmstopped
+           mov Y,EnvChNum           ; see if NOTEOFF triggered
+           mov A,ChannelFlags+Y
+           and A,#NOTEOFFTRIGGER
+           beq .no_next             ; no
+.forcemusicoff
+           mov A,#0
+           mov ChDuraCount+Y,A        ; force freeing channel
+           mov ChDuraCount+1+Y,A        ; force freeing channel
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov EnvTab_NEXTCNTlsb+Y,A ; clear sustain loop
+           mov EnvTab_NEXTCNTmsb+Y,A ; clear sustain loop
+           bra .donextnote          ; yes, trigger past sustain
+.notecntEffect
+           mov   A,EnvTab_NEXTCNTlsb+Y
+           setc                         ; X has high byte
+           sbc   A,EnvTab_TICKS+Y       ; subtract slotticks value
+           mov EnvTab_NEXTCNTlsb+Y,A  ; save low byte of subtraction
+		   mov	 nextcalc,A  ; save result in temp, too, for test
+           mov   A,EnvTab_NEXTCNTmsb+Y
+		   sbc	 A,#0
+		   bcs	 .nt_noborr
+		   mov	 A,#0	     ; subtract borrow, zero the counters
+           mov EnvTab_NEXTCNTlsb+Y,A
+		   mov	 nextcalc,A  ; and the test
+.nt_noborr
+           mov EnvTab_NEXTCNTmsb+Y,A  ; save high byte of subtraction
+		   or	 A,nextcalc  ; did we count to zero?
+		   bne	 .no_next
+.donextnote
+           mov   A,EnvTab_SUSEND+Y       ; next-note time up: got to
+                                         ; end of sustain
+           cmp A,EnvTab_TABLENG+Y    ; if it is present
+           bcc .resetpoint
+;           cmp   A,#$FF          ; providing it's present
+;           bne   .no_next
+           SetFlag EndOfEnvelope    ; indicate envelope is done
+
+.no_next       ; See if we've reached the sustain loop point:
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov A,EnvTab_CURX+Y
+           cmp   A,EnvTab_SUSEND+Y
+		   bcc	 .no_sustain	 ; only loop if we're greater than
+		   beq	 .no_sustain	 ; the sustain end.
+.sus_reloop
+           mov A,EnvTab_SUSSTART+Y  ; reset table to top of sustain
+.resetpoint
+           mov EnvTab_CURX+Y,A   ; reset curpointer to whatever is in A
+		   ; Get the current value of the table:
+.no_sustain
+.getval 	   ; ********************* FALL THROUGH ***************
+		   ; also entered from Start_Env_Table:
+		   ;
+		   ; slewflag must be valid!
+		   ;
+GetTabVal
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov   X,slewflag      ; see if slewing is turned off
+		   beq	 .getcur
+		   cmp	 last_ticks,#3	     ; just give him new slew value?
+		   bcc	 .getcur
+		   ;
+		   ; same old slew rate: just calculate new value and
+		   ; return it.
+		   ;
+           mov A,EnvTab_CURSLEWlsb+Y    ; get slew values
+           mov curslewword,A
+           mov A,EnvTab_CURSLEWmsb+Y    ; get slew values
+           mov curslewword+1,A
+           mov A,EnvTab_SLEWRATElsb+Y    ; get slew values
+           mov curslewrate,A
+           mov A,EnvTab_SLEWRATEmsb+Y    ; get slew values
+           mov curslewrate+1,A
+		   jmp	 .addslewrate		 ; update slew value
+		   ; Get the current true value of the table:
+.getcur
+
+           mov A,EnvTab_TOPPNTlsb+Y   ; load in pointer address of table
+           mov EnvPnt,A
+           mov A,EnvTab_TOPPNTmsb+Y   ; load in pointer address of table
+           mov EnvPnt+1,A
+           mov A,EnvTab_CURX+Y      ; current pointer
+           mov Y,A
+           BrFlagSet TabWORD,.twobytes  ; handle word envelopes differently
+           mov A,[EnvPnt]+Y           ; get single byte
+           mov Y,#64                ; mult for higher resolution
+           mul YA
+           bra .byteval
+.twobytes                             ; need to mult size by two and add
+;!~~~~~~********** this pitchbend stuff could be alot faster *******
+           mov Y,#2
+           mul YA
+           addw YA,EnvPnt           ; update pointer
+           movw EnvPnt,YA         ; now load bytes
+           mov Y,#1              ; msb first
+           mov A,[EnvPnt]+Y
+           dec Y
+           push A
+           mov A,[EnvPnt]+Y
+           pop Y
+.byteval	   ; the current value of the table is now in YA.
+		   ; calculate the table slew values
+		   mov	 X,slewflag	     ; slewing turned off?
+		   beq	 .last_tick	     ; give him direct value
+		   cmp	 last_ticks,#2	     ; is this the last tick of slot?
+		   beq	 .last_tick	     ; give him direct value
+		   ; We've just moved to a new slot: calculate the new
+		   ; slew rate
+		   movw  tempword,YA
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov A,EnvTab_CURSLEWmsb+Y  ; get last slew value into curslewword
+           mov curslewword+1,A
+           mov A,EnvTab_CURSLEWlsb+Y  ; get last slew value into curslewword
+		   mov	 curslewword,A
+		   mov	 Y,curslewword+1	 ; last slew value into YA
+		   setc
+		   subw  YA,tempword		 ; calculate gain delta
+		   movw  curslewrate,YA
+		   mov	 A,#0			 ; carry = 1 delta down
+		   rol	 A
+		   mov	 tempword,A		 ; hold onto direction
+		   bne	 .noinv 		 ; get absolute value of delta
+		   eor	 curslewrate,#$FF
+		   eor	 curslewrate+1,#$FF
+		   incw  curslewrate
+.noinv		   ; curslewrate(W), now holds absolute val of gain delta,
+		   ; curslewword(W), holds last slew value
+		   ; tempword	 holds 1 if delta should be negative,
+		   ;		       0 if delta should be positive
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov A,EnvTab_TICKS+Y      ; get slotticks into X
+		   mov	 X,A
+		   movw  YA,curslewrate
+		   call  Divide16	     ; figure delta-per-tick
+		   mov	 curslewrate,A
+		   mov	 curslewrate+1,X
+		   cmp	 tempword,#1	     ; restore sign to slew rate
+		   bne	 .noinv2
+		   eor	 curslewrate,#$FF
+		   eor	 curslewrate+1,#$FF
+		   incw  curslewrate
+.noinv2
+           mov Y,EnvRegY             ; load Y with correct variable index
+		   mov	 A,curslewrate
+           mov EnvTab_SLEWRATElsb+Y,A  ; store slewrate to table
+		   mov	 A,curslewrate+1
+           mov EnvTab_SLEWRATEmsb+Y,A  ; store slewrate to table
+.addslewrate
+           movw  YA,curslewword      ; update slew value
+		   addw  YA,curslewrate
+		   ;
+.last_tick	   ; entry: we're on the last tick for this slot, or we
+		   ;	    have slewing turned off.
+		   ;	    Give him  the true, unslewed table value:
+		   ;
+		   ;  < or >
+		   ;
+		   ; entry: Whatever's in YA will be the return value
+		   ;	    and the new slewword value:
+		   ;
+		   movw  curslewword,YA
+           mov Y,EnvRegY             ; load Y with correct variable index
+           mov EnvTab_CURSLEWlsb+Y,A   ; save current slew word back
+		   mov	 A,curslewword+1
+           mov EnvTab_CURSLEWmsb+Y,A   ; save current slew word back
+		   movw  YA,curslewword      ; return with current slew value
+CheckDiv
+           BrFlagSet TabWORD,.doneslew       ; convert to 8 bit value?
+           mov X,#64                         ; scale back down
+           div YA,X
+           mov Y,#0
+           movw curslewword,YA
+.doneslew
+
+           ret
+
+
+
+
+
+		   ; Safe divide routine: you can divide any 16 bit
+		   ; number by an 8 bit number and get a valid 16 bit
+		   ; result. Protects against accumulator overflow and
+		   ; divide-by-0.
+		   ;
+		   ; Entry:  YA = 16 bit number to divide
+		   ;	     X = divisor
+		   ; Exit:
+		   ;	     A = low byte of quotient
+		   ;	     X = high byte of quotient (*** NOT Y!! ****)
+		   ;	     Y = remainder
+		   ;
+		   ;	     If you tried to divide by zero, we'll return
+		   ;	     $FF in every register.
+		   ;
+		   ;	     divtemps are squashed.
+		   ;
+Divide16
+           cmp   X,#0            ; protect against divide by 0
+		   bne	 .nodiv0
+           dec X
+           mov   A,X
+           mov   Y,A
+		   ret
+.nodiv0
+           setp                      ; set direct page to page 1
+           .DP1
+           mov   divtemp+1,Y         ; see if we'll overflow
+		   cmp	 X,divtemp+1
+		   beq	 .yesovrflo
+		   bcs	 .noovrflo
+.yesovrflo	   mov	 divtemp,A	     ; complex divide to avoid overflow
+		   mov	 A,Y		     ; first divide high byte
+		   mov	 Y,#0
+		   div	 YA,X
+		   mov	 divtemp+2,A
+		   mov	 Y,A		     ; then adjust remainder to divide
+		   mov	 A,X		     ; by the high byte result
+		   mul	 YA
+		   mov	 divtemp+3,A
+		   mov	 A,divtemp+1	     ; subtract from original quantity
+		   setc
+		   sbc	 A,divtemp+3	     ; to get remaining amount to
+		   mov	 Y,A		     ; divide
+		   mov	 A,divtemp
+		   div	 YA,X
+		   mov	 X,divtemp+2	     ; recover high byte result
+           clrp                     ; reset direct page to page 0
+           ret
+.noovrflo
+           div   YA,X            ; simple divide routine
+		   mov	 X,#0
+           clrp                     ; reset direct page to page 0
+		   ret
+           .DP0
+
+		   ; This function returns the tuning offset and noise
+		   ; mode for the current wave operating in a
+		   ; particular channel
+		   ;
+		   ; Entry:
+		   ;	     X = channel number
+		   ; Exit:
+		   ;	     fnd_tune(W) = tuning offset for active wave in
+		   ;			     that channel
+		   ;	     fnd_wvmode = waveflags mode for active wave.
+		   ;
+		   ;	     X preserved.
+           ;         Y, Ind0(W),  tempword2(W) squashed.
+		   ;
+           ;        Ind0 points to addresses of startpoint/loop
+           ; currently also writes addresses of startpoint and looppoint
+           ; to source table (WFSrcTable).
+
+; SetNoise placed here also as it is always called after Get_Chan_Tune
+
+		   ; Process noise wavemode settings. Turns noise on or
+		   ; off for channel and makes sure the noise clock is
+		   ; correct.
+		   ;
+		   ; Entry:
+           ;       cur_id, cur_idmask
+		   ;
+
+Get_Chan_Tune
+           push X                   ; save for later
+
+; TESTING ONLY
+
+
+;********** DEBUG STUFF ********
+
+;    mov A,#2
+;    mov Y,#4
+;    mul YA
+;    addw YA,SourcePnt
+;    movw Ind0,YA
+;    mov Y,#0
+;    mov A,[Ind0]+Y
+;    mov EffectBlastAddr,A
+;    inc Y
+;    mov A,[Ind0]+Y
+;    mov EffectBlastAddr+1,A
+
+
+;           push X
+;           mov   A,ChCurWave+X       ; get current source number
+;           call SetBlastAddrToWave
+;           pop X
+
+;**********
+
+
+           mov   A,ChCurWave+X       ; get current source number
+           mov Y,#4
+		   mul	 YA		     ; we now have offset into dir
+		   addw  YA,SourcePnt	     ; add to source dir address
+           movw  Ind0,YA
+
+           ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+           mov A,ChX_SRCN+X     ; point DSP to current SRCN
+           mov ADR_W,A
+           ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+    ; switch to LONG addressing to set SrcTable
+
+
+           mov A,X
+           asl A
+           asl A
+           mov X,A
+
+
+           ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    ; preserve loop addresses in temporary channel as writing split
+    ; addresses causes problem
+           mov A,WFSrcTable+2+X
+           mov WFSrcTable+38,A  ; channel 9 is temporary channel
+           mov A,WFSrcTable+3+X
+           mov WFSrcTable+39,A
+           mov DATA_W,#9        ; switch to temp channel
+           ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+           mov Y,#0              ; copy address to source table
+           mov A,[Ind0]+Y
+           mov WFSrcTable+X,A
+           inc Y
+           mov A,[Ind0]+Y
+           mov WFSrcTable+1+X,A
+           inc Y
+
+           mov A,[Ind0]+Y
+           mov WFSrcTable+2+X,A
+           inc Y
+           mov A,[Ind0]+Y
+           mov WFSrcTable+3+X,A
+;~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           mov   Y,#1            ; fetch address of waveform from directory
+		   mov	 A,[Ind0]+Y
+		   mov	 tempword2+1,A
+           dec   Y           ; Y == 0
+		   mov	 A,[Ind0]+Y
+		   setc 		     ; subtract 3 from address to get
+		   sbc	 A,#WAVEBLKOFS	     ; address of the tuning info
+		   mov	 tempword2,A
+		   sbc	 tempword2+1,#0
+		   mov	 A,[tempword2]+Y     ; get tuning offset low
+		   mov	 fnd_tune,A
+		   inc	 Y		     ; Y == 1
+		   mov	 A,[tempword2]+Y     ; get tuning offset high
+		   mov	 fnd_tune+1,A
+		   inc	 Y
+		   mov	 A,[tempword2]+Y     ; get waveflags mode
+		   mov	 fnd_wvmode,A
+; noise stuff - fnd_wvmode is in A already
+;           mov   A,fnd_wvmode        ; take a look at noise mode
+
+           bpl   .noiseoff       ; if high bit set, noise is on
+           and   A,#WVM_NOISECLK_MASK    ; strip off noise clock bits
+           mov   ADR_W,#FLG  ; and set new noise clock speed
+           and   DATA_W,#$E0  ; mask off old noise clock
+           or    A,DATA_R     ; mask in new noise clock
+           mov   DATA_W,A
+           mov   ADR_W,#NON  ; and mask
+           or    DATA_W,cur_id
+           bra .noiseret
+.noiseoff
+          mov   ADR_W,#NON  ; and mask
+          and   DATA_W,cur_idmask   ; reset noise flag
+.noiseret
+
+
+
+           pop X
+           ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+           mov A,ChX_SRCN+X     ; point DSP to current SRCN
+           mov ADR_W,A
+           mov DATA_W,X             ; restore current channel
+           ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+		   ret
+
+
+		   ; This function accepts a note index number, forces
+		   ; it to be in range,  and then returns the correct
+		   ; corresponding pitch number to poke into the hardware.
+		   ;
+		   ; Entry:  YA = Note index number
+           ;          (Range is -1440 - 599, but it will be
+		   ;		  forced within range.)
+		   ; Exit:
+		   ;	     YA = Pitch frequency value
+		   ;	     X, tempword(W), squashed.
+		   ;
+           ; extended range of driver to 6 octaves lower than before
+           ; BD 7/15/93
+Note2Pitch
+
+           clrc             ; add offset of  1440 to input freq
+           adc A,#<1440     ; add to lsb
+           mov X,A          ; save for later
+           mov A,Y          ; msb, up 6 octaves
+           adc A,#>1440
+           mov Y,A
+           mov A,X          ; restore lsb
+
+
+           cmp   Y,#>1200+1440    ; see if within range
+;           cmp   Y,#>1200    ; see if within range
+		   bcc	 .inrange
+		   bne	 .outrange
+           cmp   A,#<1200+1440
+;           cmp   A,#<1200
+		   bcs	 .outrange
+.inrange       mov   nt_octave,#$FF ; single that derived octave OK
+		   jmp	 .notemod
+.outrange	   cmp	 Y,#$80      ; decide which way to force pitch
+		   bcc	 .positive
+           mov   nt_octave,#0   ; force lowest octave
+		   clrc
+		   adc	 A,#<$DF20   ; adjust negative numbers so modulus
+		   mov	 X,A	     ; comes out right
+		   mov	 A,Y	     ; (Adding $DF20 makes negatives turn out
+		   adc	 A,#>$DF20   ;	to correct remainder when dividing by
+		   mov	 Y,A	     ;	$78)
+		   mov	 A,X
+		   jmp	 .notemod
+.positive
+;           mov   nt_octave,#4   ; force highest octave
+           mov   nt_octave,#4+6   ; force highest octave
+.notemod	   mov	 X,#240      ; get note modulus of 240 (octave)
+		   div	 YA,X	     ; puts note into Y, octave into A
+           cmp   nt_octave,#$FF ; non-forced octave?
+		   bne	 .forced_oct
+           mov   nt_octave,A
+.forced_oct	   mov	 A,PitchTableLow+Y	; get pitch value
+		   mov	 tempword,A
+		   mov	 A,PitchTableHigh+Y
+		   mov	 tempword+1,A
+;           mov   A,#4            ; figure bit shift count
+           mov   A,#4+6            ; figure bit shift count
+		   setc
+           sbc   A,nt_octave
+		   beq	 .retvalue
+		   mov	 Y,A
+.downshift	   lsr	 tempword+1
+		   ror	 tempword
+		   dbnz  Y,.downshift
+.retvalue	   movw  YA,tempword	 ; return final value
+		   ret
+
+
+
+		   ; Beginning of Note-To-Frequency Table
+  ;         .nlist
+;		   .include "bnotes.i"
+
+PitchTableLow
+   .DB $0  ; Low Byte Note: A4
+	.DB $18, $2F, $47, $5F, $77, $8F, $A7, $BF, $D8
+	.DB $F0, $8, $21, $39, $52, $6B, $83, $9C, $B5
+	.DB $CE
+   .DB $E7  ; Low Byte Note: Bb4
+	.DB $0, $19, $33, $4C, $65, $7F, $98, $B2, $CC
+	.DB $E5, $FF, $19, $33, $4D, $67, $82, $9C, $B6
+	.DB $D1
+   .DB $EB  ; Low Byte Note: B4
+	.DB $6, $20, $3B, $56, $71, $8C, $A7, $C2, $DD
+	.DB $F9, $14, $2F, $4B, $67, $82, $9E, $BA, $D6
+	.DB $F2
+   .DB $E  ; Low Byte Note: C4
+	.DB $2A, $46, $63, $7F, $9C, $B8, $D5, $F2, $F
+	.DB $2B, $48, $66, $83, $A0, $BD, $DB, $F8, $16
+	.DB $34
+   .DB $51  ; Low Byte Note: Db4
+	.DB $6F, $8D, $AB, $C9, $E7, $6, $24, $43, $61
+	.DB $80, $9E, $BD, $DC, $FB, $1A, $39, $59, $78
+	.DB $97
+   .DB $B7  ; Low Byte Note: D4
+	.DB $D7, $F6, $16, $36, $56, $76, $96, $B7, $D7
+	.DB $F7, $18, $39, $59, $7A, $9B, $BC, $DD, $FF
+	.DB $20
+   .DB $41  ; Low Byte Note: Eb4
+	.DB $63, $84, $A6, $C8, $EA, $C, $2E, $50, $72
+	.DB $95, $B7, $DA, $FC, $1F, $42, $65, $88, $AB
+	.DB $CF
+   .DB $F2  ; Low Byte Note: E4
+	.DB $16, $39, $5D, $81, $A5, $C9, $ED, $11, $35
+	.DB $5A, $7E, $A3, $C8, $ED, $12, $37, $5C, $81
+	.DB $A6
+   .DB $CC  ; Low Byte Note: F4
+	.DB $F2, $17, $3D, $63, $89, $AF, $D6, $FC, $22
+	.DB $49, $70, $97, $BE, $E5, $C, $33, $5A, $82
+	.DB $AA
+   .DB $D1  ; Low Byte Note: Gb4
+	.DB $F9, $21, $49, $71, $9A, $C2, $EB, $13, $3C
+	.DB $65, $8E, $B7, $E0, $A, $33, $5D, $87, $B0
+	.DB $DA
+   .DB $4  ; Low Byte Note: G4
+	.DB $2F, $59, $84, $AE, $D9, $4, $2F, $5A, $85
+	.DB $B0, $DC, $7, $33, $5F, $8B, $B7, $E3, $F
+	.DB $3C
+   .DB $68  ; Low Byte Note: Ab4
+	.DB $95, $C2, $EF, $1C, $49, $77, $A4, $D2, $0
+	.DB $2E, $5C, $8A, $B8, $E7, $15, $44, $73, $A2
+	.DB $D1
+
+PitchTableHigh
+   .DB $20  ; High Byte Note: A4
+	.DB $20, $20, $20, $20, $20, $20, $20, $20, $20
+	.DB $20, $21, $21, $21, $21, $21, $21, $21, $21
+	.DB $21
+   .DB $21  ; High Byte Note: Bb4
+	.DB $22, $22, $22, $22, $22, $22, $22, $22, $22
+	.DB $22, $22, $23, $23, $23, $23, $23, $23, $23
+	.DB $23
+   .DB $23  ; High Byte Note: B4
+	.DB $24, $24, $24, $24, $24, $24, $24, $24, $24
+	.DB $24, $25, $25, $25, $25, $25, $25, $25, $25
+	.DB $25
+   .DB $26  ; High Byte Note: C4
+	.DB $26, $26, $26, $26, $26, $26, $26, $26, $27
+	.DB $27, $27, $27, $27, $27, $27, $27, $27, $28
+	.DB $28
+   .DB $28  ; High Byte Note: Db4
+	.DB $28, $28, $28, $28, $28, $29, $29, $29, $29
+	.DB $29, $29, $29, $29, $29, $2A, $2A, $2A, $2A
+	.DB $2A
+   .DB $2A  ; High Byte Note: D4
+	.DB $2A, $2A, $2B, $2B, $2B, $2B, $2B, $2B, $2B
+	.DB $2B, $2C, $2C, $2C, $2C, $2C, $2C, $2C, $2C
+	.DB $2D
+   .DB $2D  ; High Byte Note: Eb4
+	.DB $2D, $2D, $2D, $2D, $2D, $2E, $2E, $2E, $2E
+	.DB $2E, $2E, $2E, $2E, $2F, $2F, $2F, $2F, $2F
+	.DB $2F
+   .DB $2F  ; High Byte Note: E4
+	.DB $30, $30, $30, $30, $30, $30, $30, $31, $31
+	.DB $31, $31, $31, $31, $31, $32, $32, $32, $32
+	.DB $32
+   .DB $32  ; High Byte Note: F4
+	.DB $32, $33, $33, $33, $33, $33, $33, $33, $34
+	.DB $34, $34, $34, $34, $34, $35, $35, $35, $35
+	.DB $35
+   .DB $35  ; High Byte Note: Gb4
+	.DB $35, $36, $36, $36, $36, $36, $36, $37, $37
+	.DB $37, $37, $37, $37, $38, $38, $38, $38, $38
+	.DB $38
+   .DB $39  ; High Byte Note: G4
+	.DB $39, $39, $39, $39, $39, $3A, $3A, $3A, $3A
+	.DB $3A, $3A, $3B, $3B, $3B, $3B, $3B, $3B, $3C
+	.DB $3C
+   .DB $3C  ; High Byte Note: Ab4
+	.DB $3C, $3C, $3C, $3D, $3D, $3D, $3D, $3D, $3E
+	.DB $3E, $3E, $3E, $3E, $3E, $3F, $3F, $3F, $3F
+	.DB $3F
+
+;		   .included"bnotes.i"
+
+		   ; Music specific code
+;		   .include "mus.asm"
+
+		   ; MUS.ASM
+		   ;
+		   ; Music-specific code for Berlioz music driver
+		   ; Included with MD700.ASM
+
+
+		   ; Master call to execute the active music
+ProcessMusic
+           call OrderChannels   ; place channels in priority order if needed
+           mov player_index,#0
+           mov   A,BandPlaying   ; find out how many still playing
+           beq   BetweenSets     ; none, return
+.bandplaying
+
+           mov   A,BandCount     ; start at end of band, skip
+		   dec	 A		 ; players that were never playing
+		   mov	 cur_player,A	 ; process all of the active players
+PlayerLoop	   
+          call  QueCommand   ;check for blast request
+          mov X,player_index
+          mov A,IChannels+X      ; get current channel
+          bmi NextPlayer
+
+;############# DEBUG STUFF
+; cmp A,#2
+; bne NextPlayer
+
+          mov X,A
+          mov cur_player,A
+           mov   A,Player_State+X    ; state calls for
+		   mov	 X,A
+		   jmp	 [PState_Vectors+X]
+		   ; move on to the next player
+NextPlayer
+           inc player_index
+;           mov A,player_index
+;           cmp A,BandCount
+           cmp player_index,BandCount
+           bne PlayerLoop
+		   ; Players all done
+BetweenSets	   ret
+
+; reduce priority of type in A at channel in Y
+; A is CHBUSY_MUSIC or CHBUSY_EFFECT
+; Y is channel number
+ReducePriority
+           mov   tempword,A         ; save type first
+           mov   A,ChModes+Y        ; see if this is a one shot thing
+           and   A,#M_ONESHOT
+           beq .doppri           ; slightly reduce priority on one shots
+           mov   A,ChPriority+Y     ; reduce note priority
+           dec A
+           mov   ChPriority+Y,A
+           ret
+.doppri
+           mov   A,ChBusy+Y         ; make sure it IS a music channel
+           cmp   A,tempword
+           bne  .kppri  ; reduce priority of note
+           mov   A,ChPriority+Y     ; reduce note priority
+           lsr A
+           mov   ChPriority+Y,A
+.kppri
+           ret
+
+;**************************************************************************
+; Count related procedures:
+;**************************************************************************
+		   ; This procedure is used to count down for melodies
+		   ;
+DoPB_Count
+           call QueCommand   ; added for speed on 816 side %%%
+           mov   X,cur_player        ; count off tempo delay
+           dec   PlayerNCount+X      ; count down note duration
+           bne   NextPlayer
+           bra SetPitchBendState
+DoPlay_Count
+           call QueCommand   ; added for speed on 816 side %%%
+           mov   X,cur_player        ; count off tempo delay
+           dec   PlayerNCount+X      ; count down note duration
+		   bne	 NextPlayer
+;           mov   A,Player_State+X     ; move to next step
+SetMelodyState
+           mov   A,#PSTATE_INMELODY ; go to next melody instruct
+		   mov	 Player_State+X,A
+		   jmp	 DoPlay_Melody
+
+Melody_SetPBStateAndRelease
+           call SetRelease
+Melody_SetPitchBendState
+           mov   A, #0           ; zero out transpositions
+           mov   PlayMicroToneLSB+X,A
+           mov   PlayMicroToneMSB+X,A
+SetPitchBendState
+           mov   A,#PSTATE_INPITCHBEND ; go to next melody instruct
+           mov   Player_State+X,A
+           jmp   DoPlay_PitchBend
+
+
+;**************************************************************************
+; Melody related procedures
+;**************************************************************************
+
+; order channels in order of priority
+OrderChannels
+    BrFlagClear OrderTheChannels,.bcdone   ; channels do not need ordering
+    ClearFlag OrderTheChannels
+    mov X,BandCount ; number of players
+    beq .bcdone
+    mov A,#$FF        ; clear the channels first
+    dec X
+.clchlp
+    mov IChannels+X,A
+    dec X
+    bpl .clchlp
+    mov X,BandCount   ; find slot for this channel
+    dec X
+.findslot
+    mov tempword,#0   ; counter for channels
+.fslotlp
+    mov Y,tempword    ; get index to current slot
+    mov A,IChannels+Y
+    bmi .foundslot    ; have a slot, go plug it in
+; bra .nextslt
+    mov Y,A
+    mov A,PlayCurPriority+X
+    cmp   A,PlayCurPriority+Y
+    bcs   .foundslot
+.nextslt
+    inc tempword
+    cmp tempword,#MAXTRACKS
+    bne .fslotlp
+.finishlp
+    dec X
+    bpl .findslot    ; done
+.bcdone
+    ret
+.foundslot
+    mov Y,tempword
+    push X
+    setp                      ; set direct page to page 1
+    .DP1
+.fndlp
+    mov A,IChannels+Y   ;  get current channel already allocated
+    mov IChannels+Y,X   ; place in allocated channel
+    mov X,A             ; need to set this to next slot
+    inc Y
+    cmp A,#$FF
+    bne .fndlp
+    pop X
+    clrp                     ; reset direct page to page 0
+    bra .finishlp
+    .DP0
+
+
+; cause a note to release, X containes music channel #, Y,A destroyed
+SetRelease
+           mov A,PlayChan+X         ; get channel this is on
+           bmi .NoNoteOff           ; not playing now
+           mov Y,A
+;           mov A,ChBusy+Y          ; see if this channel is valid
+;           cmp A,#CHBUSY_MUSIC
+;           bne .NoNoteOff          ; not owned by this channel now
+
+;*** IMPORTANT PRIORTY FIX
+;{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{
+           mov A,X                  ; see if channel owned by this track
+           or A,#128
+           cmp A,ChAccessID+Y       ; should match at this point
+           bne .NoNoteOff
+;{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{
+           mov A,#NOTEOFFTRIGGER  ; set note to trigger OFF on this chan
+           or A,ChannelFlags+Y
+           mov ChannelFlags+Y,A
+           mov A,#CHBUSY_MUSIC      ; reduce priority
+           call ReducePriority
+           mov A,PlayCurFlags+X     ; see if we need to drop priority
+           and A,#PRIORITYLOCKED
+           bne .NoNoteOff           ; locked, skip priority reduction
+.NoNoteOff
+           ret
+
+
+;
+; calculate stack address based on current player in X and StackPtr value
+; in A. Real stack pointer returned in A, Y and TempIndex
+CalcStack
+        mov TempIndex,A ; save stack offset
+        mov A,X         ; current player
+        mov Y,#PhraseStackMax ; maximum stack value
+        mul YA
+        clrc
+        adc A,TempIndex ; corrected
+        mov   Y, A
+        mov   TempIndex, Y
+        ret
+
+; table to convert number in X to bit mask in A
+XToBit      .db  1,2,4,8,16,32,64,128
+
+DoPlay_PitchBend
+           call QueCommand   ; added for speed on 816 side %%%
+           mov X,cur_player
+           mov A,PlayMicroToneLSB+X
+           mov tempword,A
+           mov A,PlayMicroToneMSB+X
+           mov tempword+1,A
+           call Fetch_Mel
+           mov Y,A
+           and A,#15
+           push A
+           mov A,Y
+           lsr A        ; get micro offset
+           lsr A
+           lsr A
+           lsr A
+           beq .PBSpecial  ; special command
+           clrc            ; adjust  offset
+           adc A,#-8
+.dolongthing
+           mov Y,#0
+           cmp A,#0
+           bpl .isok
+           dec Y
+.isok
+
+           addw YA,tempword
+           mov PlayMicroToneLSB+X,A
+           mov A,Y
+           mov PlayMicroToneMSB+X,A
+           mov curmus_trig,#0        ; note trigger off
+           call  PlayANote
+           mov X,cur_player
+           pop   A
+           cmp A,#0
+           beq DoPlay_PitchBend
+           mov   PlayerNCount+X,A
+           call  SetPBCountDownState   ; X has cur_player
+           jmp NextPlayer
+
+.PBSpecial                      ; special pitchbend commands
+           pop A
+           mov A,Y
+           cmp A,#0             ; terminate pitchbend?
+           bne .SeeLongDur
+           jmp SetMelodyState   ; go back to melody
+.SeeLongDur
+           cmp A,#1
+           bne .SeeNoteOff
+           call Fetch_Mel       ; set long duration
+           mov   PlayerNCount+X,A    ; save duration value
+           call  SetPBCountDownState   ; X has cur_player
+           jmp NextPlayer
+.SeeNoteOff
+           cmp A,#2
+           bne .IsLongPB
+           call SetRelease      ; start note release
+           bra DoPlay_PitchBend
+.IsLongPB
+           mov A,PlayerNCount+X ; need to set this up so it don't change
+           push A
+           call Fetch_Mel       ; get note
+           bra .dolongthing
+
+
+
+
+
+
+DoPlay_Melody
+		   mov	 X, cur_player
+		   mov	 A, StackPtr+X
+		   cmp   A, #PhraseStackMax
+		   beq   PlayMelody      ; exit if no stack entry present
+           call CalcStack   ; set to current player
+           mov   A, CallPointerLSB+Y
+		   mov   Ind0, A         ; [Ind0] points to phrase call
+           mov   A, CallPointerMSB+Y
+		   mov   Ind0+1, A
+		   mov   Y, #CallEnd
+		   mov   A, [Ind0]+Y
+;           cmp   A, Mel_PntLSB+X
+;           bne   PlayMelody      ; exit if not at end of definition
+           cbne  Mel_PntLSB+X,PlayMelody ; replace  above two instructons
+		   mov   Y, #CallEnd+1
+		   mov   A, [Ind0]+Y
+;           cmp   A, Mel_PntMSB+X
+;           bne   PlayMelody      ; exit if not at end of definition
+           cbne  Mel_PntMSB+X,PlayMelody ; replace  above two instructons
+		   jmp   PhraseLoopEnd
+PlayMelody
+           call QueCommand   ; added for speed on 816 side %%%
+           call  Fetch_Mel     ; get note/command byte
+           mov   Y,A         ; seperate out the flags
+           cmp   Y,#$E0
+		   bcc	 .novector	 ; vector command?
+		   mov	 A,Y
+           and   A,#$1F       ; strip off $E0
+		   asl	 A	     ; multiply to word address
+           mov   Y,A     ; need to preserve X so modify code
+           mov   A,Melody_Vectors+Y
+           mov .addr+1,A
+           mov   A,Melody_Vectors+1+Y
+           mov .addr+2,A
+           mov  Y,tempword
+.addr
+           jmp   .addr          ; set as address
+.novector
+           cmp   Y,#$C0         ; short rest?
+           bcc .seeifsnote
+           setc
+           sbc A,#$BF           ; extract true rest duration
+           jmp DoSetRest        ; and set rest
+.seeifsnote
+           cmp   Y,#0         ; relative note?
+           bpl PlayRelNote
+           setc
+           sbc A,#96            ; so $80 triggers MIDI note 32
+           mov Y,A
+           bra PlayMidiNoteGD   ; finish parsing duration
+PlayRelNote
+           push A               ; extract note offset
+           lsr A
+           lsr A
+           lsr A
+           setc
+           sbc A,#8             ; to correct offset
+           clrc
+           adc A,PlayCurNote+X
+           mov Y,A              ; setup to play note
+           pop A                ; mask off duration
+           and A,#7
+           inc A
+           bra PlayMidiNote
+Melody_PlayABSNote
+           call Fetch_Mel
+           mov Y,A
+; midi note in Y, duration out in memory
+PlayMidiNoteGD
+		   call  Fetch_Mel	     ; get duration value
+; midi note in Y, duration in A
+PlayMidiNote
+           push A
+           mov   A, #0           ; zero out transpositions
+           mov   PlayMicroToneLSB+X,A
+           mov   PlayMicroToneMSB+X,A
+           ; Do midi note:
+           mov A,Y
+           mov PlayCurNote+X,A
+           mov curmus_trig,#1
+           BrFlagClear TiedNote,.nottied ; tied note?
+           dec curmus_trig
+.nottied
+           ClearFlag TiedNote
+           pop A           ; retrieve duration
+;******** FALL THROUGH for call to PlayDuration
+;
+; This takes care of the duration related processing of a new note, and
+; triggers the note.
+;
+; A=duration
+; PlayCurNote<B>, = new note's value
+; curmus_trig = non-zero if note is to be triggered.
+;
+PlayDuration
+           call  PlayNoteDuration
+           jmp NextPlayer
+
+PlayNoteDuration
+           mov   PlayerNCount+X,A    ; save duration value
+
+           ; Player goes through duration countdown even if it
+		   ; can't play out of channel
+		   ;
+		   call  SetCountDownState   ; X has cur_player
+		   ;
+		   ; Now try to output his note:
+		   ; find channel and see if it's busy
+
+PlayANote
+           mov A,PlayCurFlags+X            ; see if channel is on
+           and A,#TRACKMUTED               ; if set, skip this
+           bne .cantplay
+
+           mov   A,curmus_trig
+           beq   .chkchn; is this a tied note?
+           call SetRelease      ; get rid of other notes on this channel
+           BrFlagClear NoWaveRetrigger,.trig1_is_on ; see if we already have channel
+.chkchn
+           mov A,PlayChan+X         ; get channel this is on
+           bmi .lostchn             ; lost the channel, try retriggering
+           mov Y,A
+
+
+           mov A,X                   ; see if we REALLY have channel
+           or A,#128
+           cmp A,ChAccessID+Y
+
+
+           bne .lostchn            ; channel is ours, process
+
+           mov A,Y
+           mov X,A
+           bra .goodchn4
+
+.lostchn
+           inc curmus_trig          ; force retrigger
+           ClearFlag NoWaveRetrigger    ; reset note retrigger and reallocate
+
+
+.trig1_is_on
+           mov A,#$FF           ; set to EMPTY as default
+           mov PlayChan+X,A     ; save channel to track
+
+           mov   A,PlayCurPriority+X       ; set up for channel search
+           mov ChSrchPrior,A
+
+           mov A,PlayCurAllocFlags+X
+           mov   AllocFlags,A
+
+
+
+           mov A,PlayCurAllocMask+X
+           mov   ChSrchScan,A
+
+
+
+           mov A,PlayCurAllocStart+X       ; starting channel
+           mov X,A
+           mov A,XToBit+X                  ; to mask
+           mov ChSrchBit,A
+           call FindAChannel
+           bmi .cantplay
+           mov A,PlayCurFlags+X         ; set up channel priority locking
+           and A,#MPRIORITYLOCKED       ; off for now
+           BrFlagClear LockPriority,.lockoff
+           or A,#PRIORITYLOCKED
+.lockoff
+           mov PlayCurFlags+X,A
+           BrFlagClear RotateChannels,.goodchn1 ; need to set up rotation?
+           mov A,X                  ; set up for rotation
+           BrFlagClear SearchForward,.dobkwrd
+           inc A                        ; set up next starting channel
+           bra .RDone
+.dobkwrd
+           dec A
+.RDone
+           and A,#7                     ; make sure channel is in range
+           mov PlayCurAllocStart+X,A    ; next starting channel
+           bra .goodchn1
+.cantplay
+           jmp   .noplay  ; no? guess we can't play it
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.goodchn1
+           mov A,X
+           mov Y,A              ; so we can index from it
+.goodchn4
+           mov X,cur_player
+           mov PlayChan+X,A     ; save channel to track
+           mov A,X
+           or A,#128
+           mov ChAccessID+Y,A   ; set channel ID
+
+           mov A,curmus_trig          ; do we need to clear NoteOff?
+           beq .goodchn3              ; pitchbends need NoteOff
+
+.goodchn3
+           mov   dura_chan,Y      ; save channel number here for a sec
+           mov   A,#CHBUSY_MUSIC   ; record that channel is busy
+           mov   ChBusy+Y,A
+
+           mov   A,PlayCurPriority+X
+           mov   ChPriority+Y,A  ; save new channel priority
+
+
+           mov A,Y                ; now place in hardware tuning offsets
+           asl A                  ; word addressing
+           mov Y,A
+           mov A,PlayCurHWTuneLSB+X
+           mov ChHWCurTune+Y,A
+           mov A,PlayCurHWTuneMSB+X
+           mov ChHWCurTune+1+Y,A
+
+		   ;
+		   ; Now set player's note: add his note to microtone offset
+		   ;
+
+           mov A,PlayCurNote+X
+           mov Y,#20
+           mul YA
+           setc
+           sbc A,#<900     ; adjust par this range from midi
+           mov TrigNote,A
+           mov   A,Y
+           sbc   A,#>900
+           mov TrigNote+1,A
+
+                            ; add to pitchbend
+           mov A,PlayMicroToneMSB+X
+           mov Y,A
+           mov A,PlayMicroToneLSB+X
+           addw YA,TrigNote
+           movw TrigNote,YA
+                            ; add to Freq Offset
+           mov A,FreqOffsetMSB+X
+           mov Y,A
+           mov A,FreqOffsetLSB+X
+           addw YA,TrigNote
+           addw  YA,MasterSongTranspose  ; add in master transpose
+
+           movw   TrigNote,YA
+           mov A,DetuneMSB+X
+           mov Y,A
+           mov A,DetuneLSB+X
+           addw YA,TrigNote
+
+
+           mov    A,Y   ; restore HIGH BYTE of note to A
+
+
+.notecalcdone      ; **(DEPENDING UPON HIGH BYTE OF NOTE STAYING IN A)**
+		   ; If the trigger is not on, just plug the new note into
+		   ; the channel, and we're done.
+
+
+           mov   Y,curmus_trig
+		   bne	 .trig_is_on
+;           asl   dura_chan    ; shift channel number to word
+;           mov   X,dura_chan
+;           mov RP1,A            ; make sure all channels are set
+;           mov RP0,TrigNote
+           mov tempword2+1,A            ; make sure all channels are set
+           mov tempword2,TrigNote
+           mov   Ind0,#<ChBaseNote    ; load table address
+           mov   Ind0+1,#>ChBaseNote
+           mov A,X                  ; cur_player to A
+           or A,#128            ; mask as note ID
+           call SEPEnter  ; change pitch now
+
+;           mov   ChBaseNote+1+X,A    ; and plug in new base note
+;           mov   A,TrigNote
+;           mov   ChBaseNote+X,A
+
+           bra .noplay
+		   ;
+.trig_is_on	   ; If here, we're going to trigger the envelopes
+		   ;
+		   ; Figure player's volume
+           mov   A,PlayEVol+X
+		   bpl	 .noclip
+		   mov	 A,#$7F
+.noclip
+           mov   dura_vol,A      ; hold onto volume here for a sec
+           mov   A,dura_chan         ; recover channel number
+           asl A                     ; word addressing
+           mov   Y,A
+           mov   A,#0
+           ClearFlag ThisIsAnEffect
+           mov ExPitchMod+Y,A
+           mov ExPitchMod+1+Y,A
+           mov   A,dura_chan         ; recover channel number
+           mov   Y,A
+           mov A,ChannelFlags+Y      ; set up forced note on/offs
+           or A,#FORCENOTEONOFF
+           mov ChannelFlags+Y,A
+           mov A,#$ff                ; amp mod to max
+           mov ExAmpMod+Y,A
+           mov A,PlayCurStereoPan+X
+           mov ExStereoMod+Y,A
+           mov   A,PlayCurAmpArt+X ; place in amp articulation
+           mov AmpEnvArt,A
+           mov A,PlayWFOffset+X  ; place in waveform offset
+           mov NextWaveFormOffset,A
+           mov   A,PlayCurToneArt+X ; place in tone articulation
+           mov ToneEnvArt,A
+           mov   A,PlayCurStereoArt+X ; place in stereo articulation
+           mov StereoEnvArt,A
+           mov   A,PlayCurPitchArt+X ; place in pitch articulation
+           mov PitchEnvArt,A
+           mov Y,dura_vol           ; get base volume
+           mov A,PlayCurVelocity+X  ; multiply by velocity
+           mul YA                   ; Y now has volume
+           mov   A,InstSounds+X       ; so fetch that voice number
+		   mov	 X,dura_chan	     ; recover channel number
+		   call  TriggerSound	     ; Start the sound
+.noplay
+           inc curmus_trig          ; force retrigger
+           ClearFlag NoWaveRetrigger    ; reset note retrigger
+           ret
+;           jmp   NextPlayer      ; and we're all done
+
+		   ; Fetches the next byte from the Melody list:
+		   ; Entry:
+           ;         cur_player = cur player times 2
+           ;         Mel_PntLSB+X   = valid pointer to Mel list
+		   ;
+		   ; Exit:
+		   ;	  Melody byte in A.
+		   ;	  Y preserved.
+           ;      X = cur_player
+		   ;	  Mel pointer for player incremented
+		   ;
+Fetch_Mel
+           call QueCommand
+           mov   X,cur_player
+Fetch_Mel_x
+           mov   A,Mel_PntLSB+X       ; call here if X has cur_player
+           mov .addr+1,A           ; modify inline code
+           mov   A,Mel_PntMSB+X
+           mov .addr+2,A           ; modify inline code
+.addr
+           mov A,.addr          ; use .addr as dummy address - changed above
+           inc   Mel_PntLSB+X       ; move to next spot in the list
+		   bne	 .nocarry
+           inc   Mel_PntMSB+X
+.nocarry
+           ret               ; exit with byte in A
+
+Melody_SetEffectsMask
+           call Fetch_Mel
+            mov EffectsMask,A
+            bra ToNextMel
+
+Melody_SetStandardAllocation
+;            mov  A,PlayCurRedirect+X    ; set up redirection
+;            mov  X,A
+            mov A,#StandardSearch
+            mov PlayCurAllocFlags+X,A
+            mov A,X
+            mov PlayCurAllocStart+X,A
+ToNextMel
+            jmp   DoPlay_Melody
+
+Melody_SetChannelAllocation
+            call Fetch_Mel          ; set up allocation strategy
+            mov PlayCurAllocFlags+X,A
+            call Fetch_Mel
+            mov PlayCurAllocStart+X,A
+            call Fetch_Mel
+            mov PlayCurAllocMask+X,A
+            bra ToNextMel
+
+
+
+Melody_End
+        ; stop playing on this channel
+           call SetRelease            ; stop any notes on this channel
+           mov   A,#PSTATE_INACTIVE   ; zero out player active code
+		   mov	 Player_State+X,A
+		   dec	 BandPlaying	     ; 1 less guy playing
+		   jmp	 NextPlayer	     ; ** DOES NOT return to NextCom
+
+
+
+Melody_DeltaEx
+		   mov	 A, PlayEVol+X
+		   call  ScaleVolume
+		   mov	 PlayEVol+X, A
+           bra ToNextMel
+
+
+		   ; Calls Fetch_Mel twice to get the
+		   ; volume multiplier, an integer interpreted
+		   ; as 256ths.
+		   ;
+		   ; Scales, clips, and sets the volume.
+		   ;
+		   ; Entry:
+		   ;        A: current volume
+		   ;
+		   ; Exit :
+		   ;        A: new volume
+		   ;        X: preserved
+		   ;        Y: destroyed
+                   ;
+ScaleVolume        push  X
+                   mov   Y, A
+		   push  Y
+		   call  Fetch_Mel          ; VolumeScale
+		   mul   YA
+		   movw  tempword, YA
+		   pop   Y
+		   call  Fetch_Mel
+		   mul   YA
+		   push  Y
+		   asl   tempword
+		   adc   A, tempword+1
+		   mov   X, A
+		   pop   A
+                   adc   A, #0
+		   mov   Y, A
+		   bne   .VolumeOverflow
+		   mov   A, X
+		   bpl   .NoVolumeOverflow
+.VolumeOverflow    mov   A, #$7F
+.NoVolumeOverflow  pop   X
+                   ret
+
+Melody_AbsoEx
+           call  Fetch_Mel     ; set the expression
+		   mov	 PlayEVol+X,A
+		   jmp	 DoPlay_Melody
+
+
+DoSetRest
+           push A
+           call SetRelease          ; release any notes down
+           pop A
+DoSetDelay
+           mov   PlayerNCount+X,A    ; save duration value
+           call  SetCountDownState
+		   jmp	 NextPlayer
+
+Melody_SetTime64
+            mov A,#64
+            bra DoSetDelay
+Melody_SetTime32
+            mov A,#32
+            bra DoSetDelay
+Melody_SetTime128
+            mov A,#128
+            bra DoSetDelay
+Melody_SetTime256
+            mov A,#0
+            bra DoSetDelay
+
+Melody_SetSound
+           call  Fetch_Mel       ; get sound number
+           mov   InstSounds+X,A
+		   mov	 A, StackPtr+X       ; check for phrase substitution
+		   cmp   A, #PhraseStackMax
+           beq   .done               ; exit if no stack entry present
+           call CalcStack   ; set to current player
+           mov   A, CallPointerLSB+Y
+		   mov   Ind0, A             ; [Ind0] points to phrase call
+           mov   A, CallPointerMSB+Y
+		   mov   Ind0+1, A
+           mov   A, CallCurrentInst+Y
+		   mov   Y, #CallNumInsts
+		   cmp   A, [Ind0]+Y
+		   bcc   .ValidInstNum
+           mov   A, #0
+.ValidInstNum
+           inc   A
+		   mov   Y, TempIndex
+           mov   CallCurrentInst+Y, A
+		   clrc
+		   adc   A, #CallNumInsts
+		   mov   Y, A
+		   mov   A, [Ind0]+Y
+		   cmp   A, #$FF
+		   beq   .done               ; do nothing more if _original
+           mov   InstSounds+X, A
+.done
+           jmp   DoPlay_Melody
+Melody_CallPhrase
+            ; push entry onto phrase stack
+		   mov	 A, StackPtr+X
+           dec A
+		   mov	 StackPtr+X, A
+           call CalcStack   ; set to current player
+           mov   A, Mel_PntLSB+X
+           mov   CallPointerLSB+Y, A
+           mov   A, Mel_PntMSB+X
+           mov   CallPointerMSB+Y, A
+		   mov   A, #0
+           mov   CallLoopNum+Y, A
+		   call  Fetch_Mel          ; Begin lo
+           push A
+		   call  Fetch_Mel_x        ; Begin hi
+           push A
+		   call  Fetch_Mel_x        ; End lo
+		   call  Fetch_Mel_x        ; End hi
+		   call  Fetch_Mel_x        ; NumLoops
+           call  Fetch_Mel_x        ; FreqOffsetLSB lo
+		   mov   Y, A
+           call  Fetch_Mel_x        ; FreqOffsetLSB hi
+		   push  A
+		   mov   A, Y
+		   clrc
+           adc   A, FreqOffsetLSB+X    ; adjust FreqOffsetLSB
+           mov   FreqOffsetLSB+X, A
+		   pop   A
+           adc   A, FreqOffsetMSB+X
+           mov   FreqOffsetMSB+X, A
+           ; handle volume
+           mov   A, PlayEVol+X
+		   mov   Y, TempIndex
+           mov   CallOldVolume+Y, A
+           call  ScaleVolume        ; calls Fetch_Mel twice
+           mov   PlayEVol+X, A
+		   mov   Y, TempIndex	    ; initialize instr pointer
+           mov   A, #0
+           mov   CallCurrentInst+Y, A
+           ; begin the phrase
+           pop A
+           mov   Mel_PntMSB+X,A
+           pop A
+           mov   Mel_PntLSB+X,A
+		   jmp	 DoPlay_Melody
+
+PhraseLoopEnd
+           mov   Y, TempIndex
+           mov   A, CallLoopNum+Y
+		   inc   A                  ; increment Loop Num
+           mov   CallLoopNum+Y, A
+		   mov   Y, #CallNumLoops
+		   mov   A, [Ind0]+Y
+                   beq   .loopagain
+		   mov   Y, TempIndex
+           cmp   A, CallLoopNum+Y
+		   beq   .lastloopdone      ; if not done,
+.loopagain
+           mov   Y, #CallBegin      ; do loop again
+		   mov   A, [Ind0]+Y
+           mov   Mel_PntLSB+X, A
+		   mov   Y, #CallBegin+1
+		   mov   A, [Ind0]+Y
+           mov   Mel_PntMSB+X, A
+		   jmp   PlayMelody
+.lastloopdone                               ; else return from phrase call
+           mov   A, FreqOffsetLSB+X    ; restore FreqOffsetLSB
+		   setc
+           mov   Y, #CallFrqOffset
+		   sbc   A, [Ind0]+Y
+           mov   FreqOffsetLSB+X, A
+           mov   A, FreqOffsetMSB+X
+           mov   Y, #CallFrqOffset+1
+		   sbc   A, [Ind0]+Y
+           mov   FreqOffsetMSB+X, A
+		   mov   Y, TempIndex       ; restore Volume
+           mov   A, CallOldVolume+Y
+		   mov	 PlayEVol+X, A
+           mov   A, Ind0            ; reset Mel_PntLSB
+		   clrc
+		   adc   A, #10
+           mov   Mel_PntLSB+X, A
+		   mov   A, Ind0+1
+		   adc   A, #0
+           mov   Mel_PntMSB+X, A
+		   mov   Y, #CallNumInsts
+		   mov   A, [Ind0]+Y
+		   clrc
+           adc   A, Mel_PntLSB+X
+           mov   Mel_PntLSB+X, A
+           mov   A, Mel_PntMSB+X
+		   adc   A, #0
+           mov   Mel_PntMSB+X, A
+		   mov   A, StackPtr+X      ; pop the stack
+           inc A
+		   mov   StackPtr+X, A
+		   jmp   DoPlay_Melody      ; check for nested calls
+
+
+Melody_SetRelease
+           call SetRelease
+           bra TNMel
+Melody_Loop
+           call ResetMelody
+TNMel
+           jmp   DoPlay_Melody
+
+Melody_SetTempo
+           call  Fetch_Mel     ; get tempo
+           mov   SongTempo,A
+           bra TNMel
+
+Melody_SetStereoPan
+            call Fetch_Mel      ; get stereo pan
+            mov PlayCurStereoPan+X,A
+           bra TNMel
+
+
+Melody_SetHWDetune
+            call Fetch_Mel      ; get hardware detune
+            mov PlayCurHWTuneLSB+X,A
+            call Fetch_Mel
+            mov PlayCurHWTuneMSB+X,A
+           bra TNMel
+
+Melody_SetPriority
+            call Fetch_Mel      ; get priority
+            mov PlayCurPriority+X,A
+            SetFlag OrderTheChannels
+           bra TNMel
+
+Melody_SetVelocity
+            call Fetch_Mel      ; get priority
+            mov PlayCurVelocity+X,A
+           bra TNMel
+
+
+Melody_SetNoRetrigger
+           SetFlag NoWaveRetrigger    ; set no note retrigger
+           bra TNMel
+
+Melody_SetTiedNote
+           SetFlag TiedNote    ; next note is tied
+           bra TNMel
+
+
+		   ; Set a player to countdown state.
+		   ;
+		   ; Entry:
+		   ;	     X = curplayer
+		   ; Exit:
+		   ;	     Player_State changed to countdown state
+		   ;
+SetCountDownState
+		   mov	 A,#PSTATE_COUNTMEL
+		   mov	 Player_State+X,A
+		   ret
+
+SetPBCountDownState
+           mov   A,#PSTATE_COUNTPB
+           mov   Player_State+X,A
+           ret
+
+
+
+Melody_SetAmpArt
+           call  Fetch_Mel     ; set the expression
+           mov   PlayCurAmpArt+X,A
+           bra TNMel
+
+Melody_SetPlayWFOffset
+           call  Fetch_Mel     ; set the waveform offset
+           mov   PlayWFOffset+X,A
+           bra TNMel
+
+Melody_SetStereoArt
+           call  Fetch_Mel     ; set the expression
+           mov   PlayCurStereoArt+X,A
+TNMel1
+           bra TNMel
+
+Melody_SetPitchArt
+           call  Fetch_Mel     ; set the expression
+           mov   PlayCurPitchArt+X,A
+           bra TNMel1
+
+
+Melody_SetToneArt
+           call  Fetch_Mel     ; set the expression
+           mov   PlayCurToneArt+X,A
+           bra TNMel1
+
+
+
+Melody_ResetTrack       ; reset general parameters on this track
+            call ResetMelodyParms
+           bra TNMel1
+
+
+Melody_SetDetune
+           call Fetch_Mel
+           mov   DetuneLSB+X,A
+           call Fetch_Mel
+           mov   DetuneMSB+X,A
+           bra TNMel1
+
+		   ; These are the vectors for the special Melody commands
+           ; $E0 and above:
+		   ;
+Melody_Vectors
+;e0-ef vectors
+            .dw     Melody_SetHWDetune
+            .dw     Melody_SetAmpArt
+            .dw     Melody_SetStereoArt
+            .dw     Melody_SetToneArt
+            .dw     Melody_SetPitchArt
+            .dw     Melody_SetChannelAllocation
+            .dw     Melody_SetStandardAllocation
+            .dw     Melody_ResetTrack
+            .dw     0   ;Melody_RedirectTrack
+            .dw     Melody_SetEffectsMask
+            .dw     Melody_SetRelease
+            .dw     Melody_SetPitchBendState
+            .dw     Melody_SetPBStateAndRelease
+            .dw     Melody_SetVelocity
+            .dw     ExtendedCommand
+            .dw Melody_PlayABSNote
+
+;f0-ff vectors
+            .dw   Melody_End
+		   .dw	 Melody_DeltaEx
+		   .dw	 Melody_AbsoEx
+           .dw   Melody_SetPriority
+           .dw   Melody_SetTiedNote
+		   .dw	 Melody_SetSound
+           .dw   Melody_CallPhrase
+           .dw   Melody_SetDetune
+           .dw Melody_SetTime32
+		   .dw   Melody_Loop
+           .dw   Melody_SetTempo
+           .dw   Melody_SetStereoPan
+           .dw Melody_SetNoRetrigger
+           .dw Melody_SetTime64
+           .dw Melody_SetTime128
+           .dw Melody_SetTime256
+
+ExtendedMelody_Vectors
+; $00 - $0F
+            .dw     Melody_SetPlayWFOffset
+
+; extended command set - $EE (CODE) ....
+
+ExtendedCommand
+           call  Fetch_Mel     ; get note/command byte
+           mov   A,Y
+           asl   A       ; multiply to word address
+           mov   Y,A     ; need to preserve X so modify code
+           mov   A,ExtendedMelody_Vectors+Y
+           mov .addr+1,A
+           mov   A,ExtendedMelody_Vectors+1+Y
+           mov .addr+2,A
+           mov  Y,tempword
+.addr
+           jmp   .addr          ; set as address
+
+    .if RANDOM_SUPPORT
+
+
+		   ; Fetch a random number:
+		   ; The shift register is moved, and a random byte is returned
+		   ;	 Entry:
+		   ;		None.
+		   ;	 Exit:
+		   ;		A = Random value
+		   ;		X,Y,etc. untouched.
+Random		   mov	 A,RndReg
+		   asl	 A
+		   eor	 A,RndReg
+		   asl	 A
+		   asl	 A
+		   asl	 A
+		   rol	 RndReg+2
+		   rol	 RndReg+1
+		   rol	 RndReg+0
+		   mov	 A,RndReg+2
+		   ret
+
+
+    .endif
+
+
+;**************************************************************************
+; Song related procedures:
+;**************************************************************************
+
+
+		   ; Call to start up a song
+		   ;
+		   ; Entry:
+		   ;	   A = number of song to start
+		   ; Exit:
+		   ;	     Everything squashed.
+StartSong
+           push A
+           call StopSong
+           pop A
+           ClearFlag MusicStopped
+           mov   Y,#SONGBASE         ; find top of song struct
+		   call  FindItem
+		   movw  Song_Pnt,YA
+           ; THIS ZERO MUST BE LEFT ALONE BETWEEN HERE AND .startloop which
+           ; expects Y to be zero
+           mov   Y,#0        ; get number of band members
+		   mov	 A,[Song_Pnt]+Y
+           mov   BandCount,A     ; save number of members in total
+		   mov	 BandPlaying,A	 ; and current
+           beq   .deadsong   ; no members? gonna be a quiet song...
+           mov   cur_player,Y  ; zero in Y at this point
+.startloop
+           call ResetMelody
+           inc  cur_player
+           mov A,#0
+           BrFlagClear SaveTrackMute,.nozapmute ; save track muting info
+           mov A,#TRACKMUTED
+.nozapmute
+           mov X,cur_player ; clear flags
+           and A,PlayCurFlags+X
+           mov PlayCurFlags+X,A
+           cmp   cur_player,BandCount
+           bne   .startloop
+
+.deadsong	   ret
+
+
+ResetMelody
+;           mov   Y,cur_player
+;           inc   Y
+
+;           mov   A,[Song_Pnt]+Y  ; get number of Melody
+;           mov   Y,#MELODYBASE   ; find address of Melody
+;           call  FindItem
+;           mov   X,cur_player  ; store address in current and top
+;           mov   Mel_PntLSB+X,A
+;           mov   A,Y
+;.......removed
+;           mov   Mel_PntMSB+X,A
+
+    mov A,cur_player    ; get address of melody
+    mov X,A
+    asl A
+    inc A
+    mov Y,A
+    mov A,[Song_Pnt]+Y
+    mov Mel_PntLSB+X,A
+    inc Y
+    mov A,[Song_Pnt]+Y
+    mov Mel_PntMSB+X,A
+
+
+
+
+		   ; set other necessary bytes
+;           mov A,#0
+;           mov   SongTempo, A
+;           dec A
+           mov A,#$FF
+           mov   TempoCount, A
+		   mov   A, #PhraseStackMax ; init the phrase stack ptr
+		   mov	 StackPtr+X, A
+		   mov	 A,#PSTATE_INMELODY
+		   mov	 Player_State+X,A
+
+ResetMelodyParms
+           ClearFlag NoWaveRetrigger    ; reset note retrigger
+           ClearFlag TiedNote    ; reset tied note retrigger
+           mov   X,cur_player
+           mov A,#StandardSearch
+           mov PlayCurAllocFlags+X,A
+           mov A,X
+           mov PlayCurAllocStart+X,A
+           mov   A, #0           ; zero out transpositions
+           mov PlayCurNote+X,A
+           mov   PlayMicroToneLSB+X,A
+           mov   PlayMicroToneMSB+X,A
+           mov   FreqOffsetLSB+X, A
+           mov   FreqOffsetMSB+X, A
+           mov   DetuneLSB+X,A
+           mov   DetuneMSB+X,A
+           mov   PlayCurHWTuneLSB+X,A
+           mov   PlayCurHWTuneMSB+X,A
+           mov   PlayCurAmpArt+X,A
+           mov   PlayWFOffset+X,A
+           mov   PlayCurStereoArt+X,A
+           mov   PlayCurToneArt+X,A
+           mov   PlayCurPitchArt+X,A
+           mov PlayCurStereoPan+X,A
+           dec A
+           mov PlayChan+X,A
+           mov PlayCurVelocity+X,A
+           mov A,#64             ;reset priority
+           mov PlayCurPriority+X,A
+           mov A,#127
+           mov   PlayEVol+X,A    ; set cur volume to max
+           SetFlag OrderTheChannels
+
+
+           mov   Ind0,#<ChBusy    ; load table address
+           mov   Ind0+1,#>ChBusy
+           mov A,X                  ; cur_player to A
+           or A,#128            ; mask as note ID
+           mov Y,#0             ; free up channels in hardware
+           jmp SEVEnter
+
+SetMasterSongVol
+            mov MasterSongVol,A     ; set master song volume
+            ret
+
+SetMasterEffectsVol
+            mov MasterEffectsVol,A     ; set master effects volume
+            ret
+
+
+SetMasterSongTranspose
+            movw MasterSongTranspose,YA     ; set master song transpose
+            ret
+
+SetRP0
+            movw RP0,YA     ; set DCOM additional parameter register
+            ret
+
+SetMasterSongTempo
+            mov   TIMER1_W,A         ; place TEMPO right in hardware clock
+            ret
+SetEffectID
+            and A,#127                ; mask off, other ID's are used by driver
+            mov NextEffectID,A
+            ret
+
+
+SetNextEchoSpec
+            ClearFlag UserEchoSpec
+            mov NextEchoSpec,A
+            cmp A,#255            ; 255 means clear echo spec, otherwise
+            beq .done             ; signal that we are using this one
+            SetFlag UserEchoSpec
+.done
+            ret
+
+
+SetNextEffectVol
+            mov NextExAmpMod,A
+            ret
+SetNextEffectPan
+            mov NextExStereoMod,A
+            ret
+SetNextEffectPitch
+            mov NextExPitchMod,A
+            mov NextExPitchMod+1,Y
+            ret
+
+SetEffectPan
+           mov   Ind0,#<ExStereoMod    ; load table address
+           mov   Ind0+1,#>ExStereoMod
+           bra SEVEnter
+
+; set effect volume for all channels with certain ID code. ID code is in A,
+;   new volume setting is in Y
+
+SetEffectVol
+           mov   Ind0,#<ExAmpMod    ; load table address
+           mov   Ind0+1,#>ExAmpMod
+; enter here to search for ID and set corresponding table value in Ind0
+SEVEnter
+            mov tempword,A            ; save ID code
+            mov A,Y                  ; save volume setting into X
+            mov X,A
+            mov A,#7
+            mov Y,A                   ; scan channels for legit codes
+SEVLoop
+            mov A,ChAccessID+Y        ; change everything with matching ID's
+            cbne tempword,SEVSkip     ; nope, skip change
+            mov A,X                   ; new volume setting
+            mov [Ind0]+Y,A              ; insert into correct pos in table
+SEVSkip
+            dec Y
+            bpl SEVLoop
+            ret
+
+; forces NOTEOFF to all sounds with ID's equal to ID in A
+DoStopContEffect
+            and A,#127              ; mask off effect numbers only
+            mov tempword,A          ; save ID
+            mov X,#7                ; countdown
+.stoploop
+            mov A,ChAccessID+X      ; get channel ID
+            cbne tempword,.nextstop
+            mov A,ChannelFlags+X    ; turn on NOTEON flag
+            or A,#NOTEOFFTRIGGER+FORCENOTEONOFF
+            mov ChannelFlags+X,A
+.nextstop
+            dec X
+            bpl .stoploop
+            ret
+
+SetEffectPitch
+           mov   Ind0,#<ExPitchMod    ; load table address
+           mov   Ind0+1,#>ExPitchMod
+           mov tempword2,RP0    ; copy parameters over
+           mov tempword2+1,RP1
+; enter here to search for ID and set corresponding table value in Ind0
+SEPEnter
+            mov tempword,A            ; save ID code
+            mov A,#15
+            mov Y,A                   ; scan channels for legit codes
+            mov A,#7
+            mov X,A
+SEPLoop
+            mov A,ChAccessID+X        ; change everything with matching ID's
+            cbne tempword,SEPSkip     ; nope, skip change
+            mov A,tempword2+1                  ; new tuning setting
+            mov [Ind0]+Y,A              ; insert into correct pos in table
+            dec Y
+            mov A,tempword2
+            mov [Ind0]+Y,A
+            inc Y
+SEPSkip
+            dec Y
+            dec Y
+            dec X
+            bpl SEPLoop
+DCOM_NOP
+            ret
+
+
+; mute a music channel on the fly
+; A has track number - NO error checking is done
+
+DoMuteTrack
+    mov X,A     ; to index
+    mov A,#TRACKMUTED
+    or  A,PlayCurFlags+X
+StorePlayCurFlags
+    mov PlayCurFlags+X,A
+    ret
+DoUnMuteTrack
+    mov X,A     ; to index
+    mov A,#MTRACKMUTED
+    and  A,PlayCurFlags+X
+    bra StorePlayCurFlags
+
+; save / zap track muting on reset track
+
+FreezeTrackMuting
+    cbne Zero,.Freezon
+    ClearFlag SaveTrackMute
+    ret
+.Freezon
+    SetFlag SaveTrackMute
+    ret
+
+; kill old blast effect
+;-----------------------------------------------------------------
+DoNewBlast
+        mov Y,CurBlastEffect    ; get playing blast effect
+        mov CurBlastEffect,A    ; save new effect
+        mov A,Y
+        BrFlagClear BlastPlaying,.noblast   ; effect playing?
+        mov Y,#KILL_EFFECT
+        call StopSound      ; stop current blast
+.noblast
+        SetFlag BlastPlaying
+        ret
+;-----------------------------------------------------------------
+
+; set allocation mode
+AllocationMode
+        SetFlag EffectBestMode ; set best mode first
+        cbne Zero,.bestsearch
+        ClearFlag EffectBestMode
+.bestsearch
+        ret
+
+; unmute a music channel on the fly
+; A has track number - NO error checking is done
+
+           ; This is the vector table for the PState jumps:
+
+PState_Vectors
+           .dw   NextPlayer
+		   .dw	 DoPlay_Count
+		   .dw	 DoPlay_Melody
+           .dw   DoPlay_PitchBend
+           .dw   DoPB_Count
+
+
+
+;		   .list "check"
+
+
+		   ; These are the program vectors for the driver commands.
+DCom_Vectors
+           .dw   DoRun          ;2
+           .dw   DoStartEffect  ;4
+           .dw   DoStartSong    ;6
+           .dw   DoStartContEffect   ; 8 DoInterlude
+           .dw   DoStopContEffect          ; 10 stop continuous sund
+           .dw   0          ; 12 reserved for READBYTES - interpreted on fly
+           .dw   DoReLoad   ;14
+		   .dw	 JustFadeOut
+           .dw   StartFadeIn
+		   .dw	 StopFade
+		   .dw	 StereoMode
+           .dw   DoNewBlast     ; new blast effect
+		   .dw	 StopSong
+		   .dw	 StopSound
+
+; next 3 DCOM vectors are always 0, these are parsed in line and not vectored
+; so reserve these codes.
+
+           .dw   SetBlastAddr    ;30
+           .dw   0 ; BlastData   ;32
+           .dw  0 ; SLOWBlastData   ;34
+
+
+		   .dw   FadeAndStop	;36
+		   .dw	 StartStereoEffect	;38
+           .dw   SetMasterSongVol   ;40
+           .dw   SetMasterSongTempo   ;42
+           .dw   SetMasterSongTranspose ;44
+           .dw   SetMasterEffectsVol   ;46
+           .dw   SetNextEffectPitch ; 48
+           .dw   SetEffectID        ; 50
+           .dw   SetNextEffectVol   ; 52
+           .dw   SetEffectVol   ; 54
+           .dw   SetRP0     ; 56
+           .dw   SetEffectPitch ; 58
+           .dw   SetNextEffectPan   ; 60
+           .dw   SetEffectPan   ; 62
+           .dw   SetNextEchoSpec    ;64
+           .dw   DoMuteTrack        ; 66
+           .dw   DoUnMuteTrack      ; 68
+           .dw   FreezeTrackMuting  ; 70
+           .dw   DoReset            ; 72
+           .dw   AllocationMode     ; 74
+           .dw   SetBlastAddrToWave ; 76
+
+SetBlastAddr
+            movw EffectBlastAddr,YA
+            ret
+SetBlastAddrToWave
+;****** DEBUG STUFF
+
+;    push A
+;    mov A,#2
+;    mov Y,#4
+;    mul YA
+;    addw YA,SourcePnt
+;    movw Ind0,YA
+;    mov Y,#0
+;    mov A,[Ind0]+Y
+;    mov EffectBlastAddr,A
+;    inc Y
+;    mov A,[Ind0]+Y
+;    mov EffectBlastAddr+1,A
+;    mov A,#-3
+;    mov Y,#$ff
+;    addw YA,EffectBlastAddr
+;    movw EffectBlastAddr,YA
+;    pop A
+;****************
+
+           mov Y,#4
+           mul   YA          ; we now have offset into dir
+           addw  YA,SourcePnt        ; add to source dir address
+           movw  Ind0,YA
+           mov X,#tempword      ; copy addresses over to temps first
+           mov Y,#0
+.lp1
+           mov A,[Ind0]+Y
+           mov (X)+,A
+           inc Y
+           cmp Y,#4
+           bne .lp1
+
+           movw YA,tempword2    ; adjust loop address
+           subw YA,tempword
+           movw tempword2,YA    ; to offset
+           mov Y,#0
+           mov A,#3             ; point past  3 byte header
+           addw YA,EffectBlastAddr
+           movw tempword,YA
+           addw YA,tempword2    ; readjust loop offset
+           movw tempword2,YA
+
+           mov X,#tempword      ; copy addresses over from temps
+           mov Y,#0
+.lp2
+           mov A,(X)+
+           mov [Ind0]+Y,A
+           inc Y
+           cmp Y,#4
+           bne .lp2
+           ret
+
+
+codesizechk
+           .if codesizechk >= SILENTWAVE
+             code_too_big
+           .endif
+
+		   .ds (SILENTWAVE - codesizechk)
+		   .dw	 0   ; tune
+		   .db	 WVM_RETRIGGER
+		   .db	 $80,0,0,0,0,0,0,0,0
+
+
+
+

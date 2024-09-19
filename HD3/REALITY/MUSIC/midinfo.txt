@@ -1,0 +1,312 @@
+E1M1 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 3 assigned Instrument #034 - Electric Bass: pick (32K)	synbass2
+Channel 10 (drums) assigned program 1
+
+E1M2 
+Channel 1 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 2 assigned Instrument #051 - Synth Strings 2 (32K)	synstr2
+Channel 3 assigned Instrument #037 - Slap Bass 2 (40K)		synbass2
+Channel 4 assigned Instrument #081 - Lead 2: sawtooth (53K)	flute
+Channel 5 assigned Instrument #006 - Harpischord (7K)		synpiano
+Channel 10 (drums) assigned program 1
+
+E1M3 
+Channel 1 assigned Instrument #038 - Synth Bass 1 (12K)		synbass2
+Channel 2 assigned Instrument #092 - Pad 5: bowed (48K)		choir
+Channel 10 (drums) assigned program 1
+
+E1M4 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 3 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 4 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 5 assigned Instrument #034 - Electric Bass: pick (32K)	synbass2
+Channel 6 assigned Instrument #063 - Synth Brass 2 (59K)	trumpet
+Channel 10 (drums) assigned program 1
+
+E1M5 
+Channel 1 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 2 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 3 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 4 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 5 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 6 assigned Instrument #120 - Guitar Fret Noise (27K)	blank
+Channel 7 assigned Instrument #119 - Reverse Cymbal (26K)	blank
+Channel 10 (drums) assigned program 1
+
+E1M6 
+Channel 1 assigned Instrument #062 - Synth Brass 1 (60K)	trumpet
+Channel 2 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 3 assigned Instrument #010 - Music Box (30K)		marimba
+Channel 4 assigned Instrument #063 - Synth Brass 2 (59K)	trumpet
+Channel 5 assigned Instrument #063 - Synth Brass 2 (59K)	trumpet
+Channel 6 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 7 assigned Instrument #108 - Kalimba (4K)		woodblk
+Channel 8 assigned Instrument #081 - Lead 2: sawtooth (53K)	odguitar
+Channel 10 (drums) assigned program 1
+
+E1M7 
+Channel 1 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 2 assigned Instrument #081 - Lead 2: sawtooth (53K)	odguitar
+Channel 3 assigned Instrument #015 - Dulcimer (43K)		marimba
+Channel 4 assigned Instrument #045 - Pizzicato Strings (39K)	violin
+Channel 5 assigned Instrument #046 - Orchestral Harp (23K)	nyguitar
+Channel 6 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 7 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 8 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 9 assigned Instrument #120 - Guitar Fret Noise (27K)	blank
+Channel 16 assigned Instrument #120 - Guitar Fret Noise (27K)	blank
+Channel 10 (drums) assigned program 1
+
+E1M8 
+Channel 1 assigned Instrument #118 - Synth Drum (60K)		woodblk
+Channel 2 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 3 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 4 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 5 assigned Instrument #118 - Synth Drum (60K)		woodblk
+Channel 6 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 7 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 10 (drums) assigned program 1
+
+E1M9 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 3 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 4 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 5 assigned Instrument #082 - Lead 3: caliope lead (45K)	flute
+Channel 6 assigned Instrument #040 - Violin (24K)		violin
+Channel 7 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 8 assigned Instrument #041 - Viola (55K)		violin
+Channel 9 assigned Instrument #042 - Cello (18K)		violin
+Channel 16 assigned Instrument #040 - Violin (24K)		violin
+Channel 10 (drums) assigned program 1
+
+E2M1 
+Channel 1 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 2 assigned Instrument #028 - Electric Guitar:muted(33K)	nyguitar
+Channel 3 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 4 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 5 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 6 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 10 (drums) assigned program 1
+
+E2M2 
+Channel 1 assigned Instrument #079 - Ocarina (3K)		flute
+Channel 2 assigned Instrument #094 - Pad 7: halo (59K)		choir
+Channel 3 assigned Instrument #080 - Lead 1: square (29K)	odguitar
+Channel 4 assigned Instrument #080 - Lead 1: square (29K)	odguitar
+Channel 5 assigned Instrument #101 - FX 6: goblins (59K)	choir
+Channel 6 assigned Instrument #097 - FX 2: soundtrack (39K)	choir
+Channel 7 assigned Instrument #080 - Lead 1: square (29K)	odguitar
+Channel 10 (drums) assigned program 1
+
+E2M3 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 3 assigned Instrument #033 - Electric Bass: finger(19K)	synbass2
+Channel 4 assigned Instrument #081 - Lead 2: sawtooth (53K)	odguitar
+Channel 5 assigned Instrument #082 - Lead 3: caliope lead (45K)	flute
+Channel 10 (drums) assigned program 1
+
+E2M4 
+Channel 1 assigned Instrument #045 - Pizzicato Strings (39K)	violin
+Channel 2 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 3 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 4 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 5 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 6 assigned Instrument #049 - String Ensemble 2 (36K)	synstr2
+
+E2M5 
+Channel 1 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 2 assigned Instrument #081 - Lead 2: sawtooth (53K)	odguitar
+Channel 3 assigned Instrument #015 - Dulcimer (43K)		marimba
+Channel 4 assigned Instrument #045 - Pizzicato Strings (39K)	violin
+Channel 5 assigned Instrument #046 - Orchestral Harp (23K)	nyguitar
+Channel 6 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 7 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 8 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 9 assigned Instrument #120 - Guitar Fret Noise (27K)	blank
+Channel 16 assigned Instrument #120 - Guitar Fret Noise (27K)	blank
+Channel 10 (drums) assigned program 1
+
+E2M6 
+Channel 1 assigned Instrument #050 - Synth Strings 1 (61K)	synstr2
+Channel 2 assigned Instrument #087 - Lead 8: bass & lead (52K)	choir
+Channel 3 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 4 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 5 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 6 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 10 (drums) assigned program 1
+
+E2M7 
+Channel 1 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 2 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 3 assigned Instrument #072 - Piccolo (8K)		flute
+Channel 4 assigned Instrument #055 - Orchestra Hit (28K)	blank
+Channel 5 assigned Instrument #108 - Kalimba (4K)		woodblk
+Channel 6 assigned Instrument #013 - Xylophone (18K)		marimba
+Channel 7 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 8 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+
+E2M8 
+Channel 1 assigned Instrument #081 - Lead 2: sawtooth (53K)	odguitar
+Channel 2 assigned Instrument #080 - Lead 1: square (29K)	odguitar
+Channel 3 assigned Instrument #070 - Bassoon (16K)		oboe
+Channel 10 (drums) assigned program 1
+
+E2M9 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 3 assigned Instrument #034 - Electric Bass: pick (32K)	synbass2
+Channel 4 assigned Instrument #031 - Guitar Harmonics (10K)	synbass2
+Channel 5 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 6 assigned Instrument #045 - Pizzicato Strings (39K)	violin
+Channel 7 assigned Instrument #043 - Contrabass (9K)		violin
+Channel 8 assigned Instrument #045 - Pizzicato Strings (39K)	violin
+Channel 10 (drums) assigned program 1
+
+E3M1 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 3 assigned Instrument #034 - Electric Bass: pick (32K)	synbass2
+Channel 4 assigned Instrument #031 - Guitar Harmonics (10K)	synbass2
+Channel 5 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 6 assigned Instrument #045 - Pizzicato Strings (39K)	violin
+Channel 7 assigned Instrument #043 - Contrabass (9K)		violin
+Channel 8 assigned Instrument #045 - Pizzicato Strings (39K)	violin
+Channel 10 (drums) assigned program 1
+
+E3M2 
+Channel 1 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 2 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 3 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 4 assigned Instrument #081 - Lead 2: sawtooth (53K)	odguitar
+Channel 5 assigned Instrument #080 - Lead 1: square (29K)	odguitar
+Channel 10 (drums) assigned program 1
+
+E3M3 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 3 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 10 (drums) assigned program 1
+
+E3M4 
+Channel 1 assigned Instrument #118 - Synth Drum (60K)		woodblk
+Channel 2 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 3 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 4 assigned Instrument #052 - Choir Aahs (44K)		choir
+Channel 5 assigned Instrument #118 - Synth Drum (60K)		woodblk
+Channel 6 assigned Instrument #029 - Overdriven Guitar (25K)	odguitar
+Channel 7 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 10 (drums) assigned program 1
+
+E3M5 
+Channel 1 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 2 assigned Instrument #081 - Lead 2: sawtooth (53K)	odguitar
+Channel 3 assigned Instrument #015 - Dulcimer (43K)		marimba
+Channel 4 assigned Instrument #045 - Pizzicato Strings (39K)	violin
+Channel 5 assigned Instrument #046 - Orchestral Harp (23K)	nyguitar
+Channel 6 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 7 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 8 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 9 assigned Instrument #120 - Guitar Fret Noise (27K)	blank
+Channel 16 assigned Instrument #120 - Guitar Fret Noise (27K)	blank
+Channel 10 (drums) assigned program 1
+
+E3M6 
+Channel 1 assigned Instrument #062 - Synth Brass 1 (60K)	trumpet
+Channel 2 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 3 assigned Instrument #010 - Music Box (30K)		marimba
+Channel 4 assigned Instrument #063 - Synth Brass 2 (59K)	trumpet
+Channel 5 assigned Instrument #063 - Synth Brass 2 (59K)	trumpet
+Channel 6 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 7 assigned Instrument #108 - Kalimba (4K)		woodblk
+Channel 8 assigned Instrument #081 - Lead 2: sawtooth (53K)	odguitar
+Channel 10 (drums) assigned program 1
+
+E3M7 
+Channel 1 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 2 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 3 assigned Instrument #072 - Piccolo (8K)		flute
+Channel 4 assigned Instrument #055 - Orchestra Hit (28K)	blank
+Channel 5 assigned Instrument #108 - Kalimba (4K)		woodblk
+Channel 6 assigned Instrument #013 - Xylophone (18K)		marimba
+Channel 7 assigned Instrument #044 - Tremolo Strings (120K)	violin
+Channel 8 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+
+E3M8 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 3 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 4 assigned Instrument #031 - Guitar Harmonics (10K)	odguitar
+Channel 10 (drums) assigned program 1
+
+E3M9 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 3 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 4 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 5 assigned Instrument #082 - Lead 3: caliope lead (45K)	flute
+Channel 6 assigned Instrument #040 - Violin (24K)		violin
+Channel 7 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 8 assigned Instrument #041 - Viola (55K)		violin
+Channel 9 assigned Instrument #042 - Cello (18K)		violin
+Channel 16 assigned Instrument #040 - Violin (24K)		violin
+Channel 10 (drums) assigned program 1
+
+INTER 
+Channel 1 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 2 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 3 assigned Instrument #033 - Electric Bass:finger (19K)	synbass2
+Channel 4 assigned Instrument #081 - Lead 2: sawtooth (53K)	flute
+Channel 5 assigned Instrument #082 - Lead 3: caliope lead (45K)	flute
+Channel 10 (drums) assigned program 1
+
+INTRO 
+Channel 1 assigned Instrument #000 - Acoustic Grand Piano (63K)	synpiano
+Channel 2 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 3 assigned Instrument #051 - Synth Strings 2 (32K)	synstr2
+Channel 4 assigned Instrument #051 - Synth Strings 2 (32K)	synstr2
+Channel 5 assigned Instrument #094 - Pad 7: halo (59K)		choir
+Channel 6 assigned Instrument #094 - Pad 7: halo (59K)		choir
+Channel 7 assigned Instrument #117 - Melodic Tom (13K)		woodblk
+Channel 8 assigned Instrument #102 - FX 7: echoes (29K)		choir
+Channel 9 assigned Instrument #018 - Rock Organ (59K)		synpiano
+Channel 16 assigned Instrument #011 - Vibraphone (21K)		marimba
+Channel 11 assigned Instrument #031 - Guitar Harmonics (10K)	odguitar
+Channel 10 (drums) assigned program 1
+
+INTROA 
+Channel 1 assigned Instrument #051 - Synth Strings 2 (32K)	synstr2
+Channel 2 assigned Instrument #051 - Synth Strings 2 (32K)	synstr2
+Channel 3 assigned Instrument #094 - Pad 7: halo (59K)		choir
+Channel 4 assigned Instrument #094 - Pad 7: halo (59K)		choir
+Channel 5 assigned Instrument #018 - Rock Organ (59K)		synpiano
+Channel 6 assigned Instrument #011 - Vibraphone (21K)		marimba
+Channel 7 assigned Instrument #031 - Guitar Harmonics (10K)	odguitar
+Channel 10 (drums) assigned program 1
+
+VICTOR 
+Channel 1 assigned Instrument #094 - Pad 7: halo (59K)		choir
+Channel 2 assigned Instrument #007 - Clavinet (3K)		synpiano
+Channel 3 assigned Instrument #032 - Acousic Bass (10K)		synbass2
+Channel 4 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 5 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 6 assigned Instrument #047 - Timpani (14K)		timpani
+Channel 10 (drums) assigned program 1
+
+BUNNY 
+Channel 1 assigned Instrument #075 - Pan Flute (4K)		flute
+Channel 2 assigned Instrument #046 - Orchestral Harp (23K)	nyguitar
+Channel 3 assigned Instrument #072 - Piccolo (8K)		flute
+Channel 4 assigned Instrument #070 - Bassoon (16K)		oboe
+Channel 5 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 6 assigned Instrument #048 - String Ensemble 1 (120K)	synstr2
+Channel 7 assigned Instrument #030 - Distortion Guitar (37K)	odguitar
+Channel 8 assigned Instrument #123 - Bird Tweet (27K)		blank
+Channel 9 assigned Instrument #123 - Bird Tweet (27K)		blank
+Channel 16 assigned Instrument #033 - Electric Bass:finger(19K)	synbass2
+Channel 11 assigned Instrument #031 - Guitar Harmonics (10K)	odguitar
+Channel 10 (drums) assigned program 1

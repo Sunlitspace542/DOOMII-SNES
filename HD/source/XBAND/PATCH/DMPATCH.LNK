@@ -1,0 +1,15 @@
+       include "gamepatch.obj"
+       include "xbcomm.obj"
+       include "xxxpatch.obj"
+
+CodeGroup       group org($e00210)
+BssGroup        group bss
+
+ 
+	section Entry,CodeGroup
+	section Code,CodeGroup
+	section XBComm,CodeGroup
+	section Variables,BssGroup
+	section XBStatics,BssGroup
+	
+	regs pc = $e00210

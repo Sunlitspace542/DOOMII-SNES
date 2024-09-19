@@ -1,0 +1,2640 @@
+
+		(Note tabs must be set every 4 to read this file)
+
+				     Object Cutter design
+				by John Morgan and Randy Linden
+			
+			
+			
+	See the document objects.txt for a detailed description of the
+format for the object and character data for 16 color objects.
+
+	I suggest that the user have a batch program to force the entire
+cut to be done from scratch.
+
+	The main cutter program should check for key strokes
+so that the user can cause a delay after the current image is cut, or
+abort before the current image cut is recorded permanently.  The program
+should save all files after each permanent cut so that power can be
+lost and a subsequent restart of the program will continue at the
+same point as if nothing happened.
+
+	The program should cut packed images only if they had changed
+or any packed image before it in the imageNames file had changed.
+Forced repacking of subsequent images would also occur if the
+order of the image names in imageNames is different from the last cut.
+It should cut unpacked images only if they had changed, and this
+cut should be independant of other unpacked images before or after
+it in the imageNames file.  Any unpacked image which had previously
+been cut but no longer exists in the imageNames file should be
+deleted from the database.
+
+
+
+	A suggested format for the imageNames file (typed by the user) is:
+
+name1		{name1 is the filename, no data packing with other images}
+name2,p		{name2 is the filename, data is packed with other images}
+name3#?		{various files to be input starting with name3}
+name3#?,p	{various files to be input starting with name3, all are packed}
+...			{continue till end of file}
+
+
+
+(format for 2x2 objs in image being cut:)
+
+				(p2x2 ram:)
+p2x2Beg ->		1st obj entry in image
+				...
+p2x2RowBeg ->	1st obj entry in row (or row piece)
+				...
+p2x2CloseMirBeg -> 1st obj close enough to center so mirror weight not auto-added
+				...
+				last obj entry
+p2x2End ->		next free entry
+		
+format for 2x2 entry is:
+
+(long word)
+index:			use:
+------------------------------------------
+UL_X			left x of 16x16 obj (ignoring flips)
+
+UL_Y			top  y of 16x16 obj (ignoring flips)
+
+2X2_COPY		(neg) 		NEW 2x2, VRAM USED
+				(pos)		COPY OF 2X2, NO VRAM USED, (this is ptr
+								to 1st entry of copied 2x2 in image)
+				
+	the following 4 chars are stored as they appear in VRAM:
+
+		UL	UR
+
+		LL	LR
+
+(if this is
+ mirrored obj of
+ another, then of
+ the following
+ data, only the
+ flip bits in
+ UL_CHAR are
+ valid)
+
+UL_CHAR			ptr to VRAM pixel data, flips bits are same for object flip
+
+UL_COPY			(neg)		NEW char, (-1 stored)
+				0			BLANK char
+				1:64K-1		PACKED COPY, (packed char # supplied)
+				>= 128K *	IMAGE COPY, (ptr to xx_CHAR index supplied)
+							*-Note this value will NOT overwrite the
+							previous 3 values if the entire 2x2 is a copy
+
+				(the following occurs only after image completely cut)
+				64K:128K-1	UNPACKED char, (unpacked char # supplied)
+							
+UL_REASSIGN		(neg)		NONE, (no previous 1x1 char reassigned)
+				(pos)		REASSIGNED, (ptr to 1st index of 1x1 obj)
+
+
+LL_CHAR			ditto for 3 other chars
+LL_COPY			
+LL_REASSIGN
+
+UR_COPY
+UR_CHAR
+UR_REASSIGN
+
+LR_COPY
+LR_CHAR
+LR_REASSIGN
+
+
+
+
+(format for 1x1 objs in image being cut:)
+
+				(p1x1 ram:)
+p1x1Beg ->		1st obj entry
+				...
+p1x1RowBeg ->	1st obj entry in row or row piece
+				...
+p1x1CloseMirBeg -> 1st obj close enough to center so mirror weight not auto-added
+				...
+				last obj entry
+p1x1End ->		next free entry
+		
+format for 1x1 entry is:
+
+(long word)
+index:			use:
+------------------------------------------
+UL_X			left x of 8x8 obj (ignoring flips)
+
+UL_Y			top  y of 8x8 obj (ignoring flips)
+
+CHAR			ptr to VRAM pixel data, flips bits are same for object flip
+
+COPY			(neg)		NEW char, (-1 stored)
+				0			BLANK char
+				1:64K-1		PACKED COPY, (packed char # supplied)
+				>= 128K		IMAGE COPY, (ptr to xx_CHAR entry)
+							In this case, pixel data for CHAR entry is same
+							as the copied char, except if a 1x1 is a copy
+							of a reassigned 1x1 in which case the original
+							1x1 may have to flip again to get a match)
+
+(the following data
+ is valid only while
+ a 1x1 is reassigned
+ to a subsequent 2x2)
+
+CHAR_SAVE		copy of value before reassignment
+
+COPY_SAVE		copy of value before reassignment
+
+
+
+
+format for ptr in pChar:pXYChar arrays is:
+
+	ptr = 	p??Char +		(base adrs, ?? = "", "X", "Y", "XY")
+			flip y << 18 +	(obj flip y bit)
+			flip x << 17 +	(obj flip x bit)
+			y << 8 +		(y adrs, 0:255)
+			x				(x adrs, 0:255)
+
+
+format for ptr in pCopy:pXYCopy arrays is:
+
+	ptr = 	p??Copy +		(base adrs, ?? = "", "X", "Y", "XY")
+			flip y << 19 +	(obj flip y bit)
+			flip x << 18 +	(obj flip x bit)
+			y << 9 +		(y adrs, 0:255)
+			x << 1			(x adrs, 0:255)
+
+
+
+
+format for packed char is:
+
+pPackBeg points to first tree node.  Note a char consists
+of 63 tree nodes and 1 final node.
+
+tree node format is:
+
+byte		use
+-------------------
+0			pixel, 0:15 (0 = transparent)
+1:4			ptr to next tree node if pixel match (for next pixel level)
+5:8			ptr to next tree node if no pixel match (for other pixel choice,
+				same level).  If neg then no other pixel choice exists
+
+final node format is:
+
+byte		use
+-------------------
+0			pixel, 0:15 (0 = transparent)
+1:4			packed char # (0:64K-1)
+5:8			ptr to next tree node if no pixel match (for other pixel choice,
+				same level).  If neg then no other pixel choice exists
+
+note PACK_SIZE = 9
+
+
+
+
+main()
+
+	allocArrays() (allocate fixed arrays)
+
+	inputDataBase() (input existing database for pre-cut images)
+		(code to be written)
+
+	while(more images exist)
+		(code to be written)
+
+		if (cutNextImage()) (decide if next image needs to be recut)
+			(code to be written)
+
+		then
+			inputImage() (input image to screen and pCopy array)
+				(code to be written)
+			cutImage() (cut it will all available techniques)
+			outputImage() (output results to database, save files)
+
+	deleteOldCuts() (delete old cuts of unpacked images which no longer
+		exist in imageNames file)
+		(code to be written)
+
+	return()
+
+
+
+allocArrays()
+
+	allocate main arrays
+
+	will return nothing
+
+
+	array:			adrs needs:		size
+-------------------------------------------------------
+	p1x1Beg			>= 128K			7K
+	p2x2Beg			> p1x1Beg		4K
+
+	p1x1BestBeg		---				7K
+	p2x2BestBeg		---				4K
+
+	p1x1BestEverBeg	---				7K
+	p2x2BestEverBeg	---				4K
+
+	pChar			256K bound		256K
+	pXChar			= pChar+64K		---
+	pYChar			= pXChar+64K	---
+	pXYChar			= pYChar+64K	---
+
+	pCopy			512K bound		512K
+	pXCopy			= pCopy+64K		---
+	pYCopy			= pXCopy+64K	---
+	pXYCopy			= pYCopy+64K	---
+
+	pPack			---				9.4 Meg would cover 50% of a 1MByte cart
+
+	pUnpack			---				1 Meg would cover 50% of a 1MByte cart
+
+	
+	... code to be written
+
+	return()
+
+
+
+cutImage()
+
+	image has been loaded to pCopy array (256 x 256), 1 byte per pixel
+	no return value
+
+
+	declare no cut yet:
+	
+	bestEverWeight = _ffffffff
+	p1x1BestEverEnd = p1x1BestEverBeg
+	p2x2BestEverEnd = p2x2BestEverBeg
+
+	if (setImageBounds() == 0) (blank image)
+	then
+		return()
+
+	copyImageAllFlips() (copy image to other 3 arrays for 3 flips)
+
+	find transparent & packed char copies, no flip:
+	setCopyArray(pChar,pCopy,leftX,rightX,topY,bottomY)
+
+	find transparent & packed char copies, x flip:
+	setCopyArray(pXChar,pXCopy,rightX & _ff,leftX & _ff,topY,bottomY)
+
+	find transparent & packed char copies, y flip:
+	setCopyArray(pYChar,pYCopy,leftX,rightX,bottomY & _ff,topY & _ff)
+
+	find transparent & packed char copies, xy flip:
+	setCopyArray(pXYChar,pXYCopy,rightX & _ff,leftX & _ff,bottomY & _ff,topY & _ff)
+
+	cutImageSlidingRows() (cut image, using sliding rows idea)
+
+	cutImageSlidingColumns() (cut image, using sliding columns idea)
+	(no code yet, wait till cutImageSlidingRows is working to copy it)
+
+	(add any other techniques if desired)
+
+	return()
+
+
+
+setImageBounds()
+
+	this will scan the image and find the smallest rectangle that 
+	surrounds it
+
+	return:		0 if image is totally blank
+				1 if image has data
+
+
+	for (topY = 0 ; topY <= 255 ; topY++)
+		pChar_ = pChar + topY << 8
+		for (x_ = 0 ; x_ <= 255 ; x_++)
+			if (*pChar_++ != 0)
+			then
+				goto gotTop
+
+	image is totally blank!
+	return(0)
+
+	gotTop::
+
+	for (bottomY = 255 ; (always true) ; bottomY--)
+		pChar_ = pChar + bottomY << 8
+		for (x_ = 0 ; x_ <= 255 ; x_++)
+			if (*pChar_++ != 0)
+			then
+				goto gotBottom
+
+	gotBottom::
+
+	for (leftX = 0 ; (always true) ; leftX++)
+		pChar_ = pChar + leftX
+		for (y_ = 0 ; y_ <= 255 ; y_++)
+			if (*pChar_++ != 0)
+			then
+				goto gotLeft
+
+	gotLeft::
+
+	for (rightX = 255 ; (always true) ; rightX--)
+		pChar_ = pChar + rightX
+		for (y_ = 0 ; y_ <= 255 ; y_++)
+			if (*pChar_++ != 0)
+			then
+				goto gotRight
+
+	gotRight::
+
+	(ensure >= 15 pixel blank border around edges of 256x256 screen)
+
+	if (topY < 15 or
+		bottomY > 255-15 or
+		leftX < 15 or
+		rightX > 255-15)
+	then
+		print error message for blank border requirement
+		stop program
+
+	return(1) (image ok)
+
+
+
+copyImageAllFlips()
+
+	copy image into 3 other image arrays for 3 other flips
+	no return value
+
+
+	pChar_ = pChar
+	pXChar_ = pXChar bitXor _ff
+	pYChar_ = pYChar bitXor _ff00
+	pXYChar_ = pXYChar bitXor _ffff
+
+	while (pChar_ < pXChar) (note pChar is followed by pXChar!)
+
+		*pXChar_--  = *pChar_
+		*pYChar_++  = *pChar_
+		*pXYChar_-- = *pChar_++
+
+		if (pChar_ & _ff == 0) (finished 1 row)
+		then
+			pXChar_ += _200
+			pYChar_ -= _200
+
+	return()
+
+
+
+setCopyArray(pCharBeg_,pCopyBeg_,leftX_,rightX_,topY_,bottomY_)
+
+	scan image (base of 64K array at pCharBeg_, base of 128K array
+		at pCopyBeg_, and with data within supplied bounds) and
+		find if chars are transparent or packed copies.
+
+	will return nothing
+
+
+	clear mem from pCopyBeg_ to pCopyBeg_+_1ffff with 0 (transparent)
+
+	for (y_ = topY_ ; y_ <= bottomY_ ; y_++)
+	
+		pChar_ = pCharBeg_ + y_ << 8 + leftX_
+		pCopy_ = pCopyBeg_ + (pChar_ & _ffff) << 1
+	
+		for (x_ = leftX_ ; x_ <= rightX_ ; x_++)
+			
+			quick check if char is transparent:
+
+			if (pChar_[_000:_007] all 0's and
+				pChar_[_100:_107] all 0's and
+				pChar_[_200:_207] all 0's and
+				pChar_[_300:_307] all 0's and
+				pChar_[_400:_407] all 0's and
+				pChar_[_500:_507] all 0's and
+				pChar_[_600:_607] all 0's and
+				pChar_[_700:_707] all 0's)
+			then
+				goto chkNext
+
+			if (pack) (packing allowed)
+			then
+				*pCopy_ = findPacked(pChar_) (return -1 (not found)
+					or 1:64K-1 as packed char# found)
+			else
+				*pCopy_ = -1 (new char, no packed copy)
+
+			chkNext::
+
+			pChar_++
+			pCopy_ += 2
+
+	return()
+
+
+
+findPacked(pChar_)
+
+	scan all packed chars to see if this char (without further flipping)
+		is found (check for transparent before calling this)
+	Note that if you accidentally call this with a transparent char,
+		then this code will indeed find it and return 0.
+
+	will return long word:
+		-1 		if not found
+		0:64K-1 as packed char # if found
+		
+
+	Note this routine could be called up to a max of
+		(256-15-15) * (256-15-15) * 4 = 204,304 times per image
+		loaded, so I think we'd better make it go fast, don't you?
+	A more realistic estimate would be for an image which
+		was 64 x 64 pixels.  This would only take 64 * 64 * 4
+		= 16,384 times per image.
+
+	pPack_ = pPackBeg
+
+	for (y_ = 0 ; y_ <= 7 ; y_++)
+		for (x_ = 0 ; x_ <= 7 ; x_++)
+			i_ = *pChar_++
+			if (i_ != *pPack_)
+			then
+				while(*(pPack_+5) (long word) >= 0)
+					pPack_ = *(pPack_+5)
+					if (i_ == *pPack_)
+					then
+						goto gotPixel
+				return(0)
+			else
+			
+				gotPixel::
+				
+				pPack_ = *(pPack_+1) (long word)
+		pChar_ += _100-8
+
+	return(pPack_) (0:64K-1)
+
+			
+
+cutImageSlidingRows()
+
+	this will cut the image using sliding rows, each 16 pixels high,
+	to find the best cut
+
+	will return nothing
+
+
+	clear tried_[0:15] to 0
+
+	for (offset_ = 0 ; offset_ <= 15 ; offset_++)
+
+		try rows going from top down
+
+		topYRow = topY - offset_
+		if (!tried_[topYRow & _f])
+		then
+			tried_[topYRow & _f] = 1		
+			deltaTopYRow = 16
+			cutRows()
+
+		try rows going from bottom up
+
+		topYRow = bottomY-15 + offset_
+		if (!tried_[topYRow & _f])
+		then
+			tried_[topYRow & _f] = 1		
+			deltaTopYRow = -16
+			cutRows()
+
+	return()
+
+		
+
+cutRows()
+
+	scan the various 16 pixel high rows, and cut them.
+	Note topYRow set at desired top y of topmost row
+		deltaTopYRow is +16 or -16
+
+	will return nothing
+
+
+	declare no best cut yet:
+
+	p1x1BestEnd = p1x1Best
+	p2x2BestEnd = p2x2Best
+
+	declare no cut yet:
+
+	p1x1End = p1x1Beg
+	p2x2End = p2x2Beg
+	weight = 0
+
+	repeat
+		if (cutRow() == 0) (0 == abort early)
+		then
+			return()
+
+		topYRow += deltaTopYRow (+16 or -16)
+		while(topYRow + 15 >= topY and topYRow <= bottomY)
+
+	(if code reaches here then it found the best cut yet!)
+
+	bestEverWeight = bestWeight
+
+	move mem from p1x1BestBeg, length p1x1BestEnd-p1x1BestBeg,
+		to p1x1BestEverBeg (note length may be 0)
+
+	p1x1BestEverEnd = p1x1BestEverBeg + (p1x1BestEnd-p1x1BestBeg)
+
+	move mem from p2x2BestBeg, length p2x2BestEnd-p2x2BestBeg,
+		to p2x2BestEverBeg (note length may be 0)
+
+	p2x2BestEverEnd = p2x2BestEverBeg + (p2x2BestEnd-p2x2BestBeg)
+
+	return()
+
+
+
+cutRow()
+
+	this will cut the entire 16 pixel high row as best as possible
+
+	Will return:	0 if caller must abort early (cut worse than bestEverWeight)
+					1 if caller may continue
+
+
+	get misc stuff about row:
+
+	if (chkRowStatus() == 0) (row is all blank)
+	then
+		return(1)
+
+	if mirroring, then only need to cut the left half:
+
+	if (mirror)
+	then
+		rightXRow_ = leftXMirCenter
+	else
+		rightXRow_ = rightXRow
+
+	find biggest area of transparency (if any) in middle of row to cut:
+
+	blankWidth_ = 0
+	pChar_ = pChar + topYRow << 8 + leftXRow+1
+	for (x_ = leftXRow+1 ; x_ <= rightXRow_ ; x_++)
+		if (pChar_[_000] == 0 and
+			pChar_[_100] == 0 and
+			pChar_[_200] == 0 and
+			pChar_[_300] == 0 and
+			pChar_[_400] == 0 and
+			pChar_[_500] == 0 and
+			pChar_[_600] == 0 and
+			pChar_[_700] == 0 and
+			pChar_[_800] == 0 and
+			pChar_[_900] == 0 and
+			pChar_[_a00] == 0 and
+			pChar_[_b00] == 0 and
+			pChar_[_c00] == 0 and
+			pChar_[_d00] == 0 and
+			pChar_[_e00] == 0 and
+			pChar_[_f00] == 0)
+		then
+			x2_ = x_
+			pChar2_ = pChar_
+			repeat
+				if (x2_ - x_ + 1 > blankWidth_)
+				then
+					blankWidth_ = x2_ - x_ + 1
+					leftXBlank_ = x_
+					rightXBlank_ = x2_
+				x2_++
+				pChar2_++
+				while(x2_ <= rightXRow_ and
+					pChar_[_000] == 0 and
+					pChar_[_100] == 0 and
+					pChar_[_200] == 0 and
+					pChar_[_300] == 0 and
+					pChar_[_400] == 0 and
+					pChar_[_500] == 0 and
+					pChar_[_600] == 0 and
+					pChar_[_700] == 0 and
+					pChar_[_800] == 0 and
+					pChar_[_900] == 0 and
+					pChar_[_a00] == 0 and
+					pChar_[_b00] == 0 and
+					pChar_[_c00] == 0 and
+					pChar_[_d00] == 0 and
+					pChar_[_e00] == 0 and
+					pChar_[_f00] == 0)
+
+			x_ = x2_
+
+	check if row is small enough to be done in 1 piece
+
+	if (rightXRow_ - leftXRow + 1 <= maxWidth1Piece)
+	then
+		
+		(row can be done in 1 piece)
+
+		check if can do 2 seperated pieces simultaneously:
+
+		if (blankWidth_ >= 1 and
+			leftXBlank_ - leftXRow    < maxWidth1Piece2Simul and
+			rightXRow_ - rightXBlank_ < maxWidth1Piece2Simul)
+		then
+
+			do row in 1 piece, but 2 seperated simultaneous parts:
+	
+			newBest_ = 0
+			bestWeight = bestEverWeight
+
+			for (xOffset_ = 0 ; xOffset_ <= 7 ; xOffset++)
+			
+				pULchar = pChar + topYRow << 8 + leftXRow - xOffset_
+				pULcopy = pCopy + (pULchar & _ffff) << 1
+				pULcharLimit = pULchar & _ffffff00 + leftXBlank_-1
+				
+				for (xOffset2_ = 0 ; xOffset2_ <= 7 ; xOffset2++)
+			
+					firstSimulPart = 1
+
+					pULchar2 = pChar + topYRow << 8 + rightXBlank_+1 - xOffset_
+					pULcopy2 = pCopy + (pULchar2 & _ffff) << 1
+					pULcharLimit2 = pULchar2 & _ffffff00 + rightXRow_
+
+					p1x1RowBeg = p1x1Beg
+					p2x2RowBeg = p2x2Beg
+					
+					p1x1CloseMirBeg = -1 (not set yet)
+					
+					cutRowColumn()
+					
+			if (!newBest_)
+			then
+				return(0) (caller must abort, cut worse than bestEverWeight)
+
+			useBestCut() (declare best simultaneous cut is permanently done)
+
+			return(1)
+
+		do row in 1 big piece:
+
+		firstSimulPart = 0 (no simultaneous parts)
+
+		newBest_ = 0
+		bestWeight = bestEverWeight
+
+		for (xOffset_ = 0 ; xOffset_ <= 7 ; xOffset++)
+		
+			pULchar = pChar + topYRow << 8 + leftXRow - xOffset_
+			pULcopy = pCopy + (pULchar & _ffff) << 1
+			pULcharLimit = pULchar & _ffffff00 + rightXRow_
+			
+			p1x1RowBeg = p1x1Beg
+			p2x2RowBeg = p2x2Beg
+			
+			p1x1CloseMirBeg = -1 (not set yet)
+			
+			cutRowColumn()
+			
+		if (!newBest_)
+		then
+			return(0) (caller must abort, cut worse than bestEverWeight)
+
+		useBestCut() (declare best simultaneous cut is permanently done)
+
+		return(1)
+
+	(row so big it must be done in 2 seperate parts)
+
+	retry::
+
+	see if seperation can be done in the gap in the middle (if any):
+
+	if (blankWidth_ >= 1 and
+		leftXBlank_ - leftXRow    <= maxWidth1Piece and
+		rightXRow_ - rightXBlank_ <= maxWidth1Piece)
+	then
+
+		seperation can be done in the gap
+			(leftXBlank_,rightXBlank_ already set)
+
+	else
+
+		find good spot near middle to cut image
+		(this technique will make left piece multiple of 16 wide)
+
+		leftXBlank_ = leftXRow + (rightXRow_+1 - leftXRow) /(trunc) 2
+		i_ = (leftXBlank_ - leftXRow) & _0f
+		if (i_ >= 8)
+		then
+			leftXBlank_ += 16 - i_
+		else
+			leftXBlank_ -= i_
+			
+		rightXBlank_ = leftXBlank - 1
+
+		failsafe check:
+
+		if (leftXBlank_ <= leftXRow or rightXBlank_ >= rightXRow_)
+		then
+			maxWidth1Piece++ (override user input till code works)
+			goto retry (above)
+
+	do left row piece:
+
+	firstSimulPart = 0 (no simultaneous parts)
+
+	newBest_ = 0
+	bestWeight = bestEverWeight
+
+	for (xOffset_ = 0 ; xOffset_ <= 7 ; xOffset++)
+	
+		pULchar = pChar + topYRow << 8 + leftXRow - xOffset_
+		pULcopy = pCopy + (pULchar & _ffff) << 1
+		pULcharLimit = pULchar & _ffffff00 + leftXBlank_-1
+		
+		p1x1RowBeg = p1x1Beg
+		p2x2RowBeg = p2x2Beg
+		
+		p1x1CloseMirBeg = -1 (not set yet)
+		
+		cutRowColumn()
+		
+	if (!newBest_)
+	then
+		return(0) (caller must abort, cut worse than bestEverWeight)
+
+	useBestCut() (declare best simultaneous cut is permanently done)
+
+	do right row piece:
+
+	newBest_ = 0
+	bestWeight = bestEverWeight
+
+	for (xOffset_ = 0 ; xOffset_ <= 7 ; xOffset++)
+	
+		pULchar = pChar + topYRow << 8 + rightXBlank_+1 - xOffset_
+		pULcopy = pCopy + (pULchar & _ffff) << 1
+		pULcharLimit = pULchar & _ffffff00 + rightXRow_
+		
+		p1x1RowBeg = p1x1Beg
+		p2x2RowBeg = p2x2Beg
+		
+		p1x1CloseMirBeg = -1 (not set yet)
+		
+		cutRowColumn()
+		
+	if (!newBest_)
+	then
+		return(0) (caller must abort, cut worse than bestEverWeight)
+
+	useBestCut() (declare best simultaneous cut is permanently done)
+
+	return(1)
+
+
+
+chkRowStatus()
+
+;Input:
+;
+;	leftX
+;	rightX
+;	topYRow
+
+;Will return:
+;		0 if row totally blank
+;		1 if row contains data
+;
+;	leftXRow		x of leftmost column containing non-transparent data
+;		
+;	rightXRow		x of rightmost column containing non-transparent data
+;
+;	leftXMirCenter:	leftXRow   + (rightXRow-leftXRow) /(trunc) 2
+;	
+;	rightXMirCenter: rightXRow - (rightXRow-leftXRow) /(trunc) 2
+;
+;	mirror:			0 if row is not a mirror
+;					1 if row is an x-flip mirror
+;
+;	pULcloseMir		if pULchar >= pULcloseMir when obj cut then there will
+;						be no auto-add of mirror weights as the mirror obj
+;						could be cut differently
+
+	
+
+	find left edge:
+
+	pULcopy_ = pCopy + topYRow << 9 + (leftX-7) << 1
+	for (leftXRow = leftX ; leftXRow <= rightX_ ; leftXRow++)
+		if (pULcopy_[0] != 0 or pULcopy_[_800] != 0)
+			(if column at x==leftXRow not transparent)
+		then
+			goto gotLeft
+		pULcopy_ += 2
+
+	return(0) (row totally blank)
+
+	gotLeft::
+
+	pULcopy_ = pULcopy_ & _ffffff00 + rightX << 1
+	for (rightXRow = rightX ; (always true) ; rightXRow--)
+		if (pULcopy_[0] != 0 or pULcopy_[_800] != 0)
+			(if column at x==rightXRow not transparent)
+		then
+			goto gotRight
+		pULcopy_ -= 2
+
+	gotRight::
+
+	leftXMirCenter =  leftXRow  + (rightXRow-leftXRow) /(trunc) 2
+	
+	rightXMirCenter = rightXRow - (rightXRow-leftXRow) /(trunc) 2
+
+	check if row is a mirror image from left to right:
+
+	mirror = 1 (assume mirroring)
+	for (y_ = topYRow ; y_ <= topYRow+15 ; y_++)
+		pULchar_ = pChar + y_ << 8 + leftXRow
+		pURchar_ = pULchar_ & _ffffff00 + rightXRow
+		while (pULchar_ < pURchar_)
+			if (*pULchar_++ != *pURchar_--)
+			then
+				mirror = 0
+				breakFor
+
+	if (mirror)
+	then
+
+		find point where objs are too close to center to
+			auto-add weights for the mirror objects:
+
+		x_ = rightXMirCenter - 15 - 8
+		if (x_ < 0)
+		then
+			x_ = 0
+		pULcloseMir = pChar + topYRow << 8 + x_
+	else
+		pULcloseMir = pChar + topYRow << 8 + 0 (must do this to
+			turn off auto-add of mirror weights)
+			
+	return()
+
+
+
+
+cutRowColumn()
+
+;	you are within a 16 pixel high row.
+;	Cut the left column into
+;	a 2x2 or 1x1s and recurse to the right
+;	note the input chars are NOT flipped
+;
+;	pULchar = ptr to upper left pixel of upper char in left column (note
+;		this is the image with no flip)
+;	pULcopy = ptr to packed-char-copy word for upper char in left column
+;       (note this is the array for no flip)
+;
+;	will return nothing
+
+	check if time to record start of objs which do not auto-add the
+		mirror weights:
+
+	push(p1x1CloseMirBeg)
+	if (pULchar >= pULcloseMir and
+		p1x1CloseMirBeg < 0) (not set yet)
+	then
+		p1x1CloseMirBeg = p1x1End
+		p2x2CloseMirBeg = p2x2End
+
+	if (pULchar > pULcharLimit)
+	then
+	
+		(this is the end of the row, or the piece of the row)
+
+		if (firstSimulPart)
+		then
+			
+			time to switch to 2nd of 2 simultaneous parts:
+
+			push(pULchar)
+			push(pULcopy)
+			push(pULcharLimit)
+
+			pULchar = pULchar2
+			pULcopy = pULcopy2
+			pULcharLimit = pULcharLimit2
+
+			firstSimulPart = 0
+
+			cutRowColumn() (NOTE LOCAL VARS USUALLY LOST!)
+
+			firstSimulPart = 1
+
+			pop(pULcharLimit)
+			pop(pULcopy)
+			pop(pULchar)
+
+			goto cutRowColumnReturn
+
+		chkMir() (check mirroring, then check best weight) (done above)
+
+		cutRowColumnReturn::
+
+		pop(p1x1CloseMirBeg)
+
+		return() (end of row or piece of row)
+
+	see if a 2x2 cut can be done:
+
+	see if enough non-transparent chars to cut a 2x2:
+
+	first count how many non-transparent chars exist among 4 chars
+
+	numChars_ = 0
+	if (pULcopy[_000] != 0) (upper left transparent?)
+	then
+		numChars_++
+	if (pULcopy[_800] != 0) (lower left transparent?)
+	then
+		numChars_++
+	if (pULcopy[_008] != 0) (upper right transparent?)
+	then
+		numChars_++
+	if (pULcopy[_808] != 0) (lower right transparent?)
+	then
+		numChars_++
+
+	if (numChars_ >= 3 or
+		(numChars_ == 2 and enable2Char2x2Cut and
+		 (pULcopy[_000] != 0 or pULcopy[_800] != 0)
+		)
+	   )
+    then
+
+		(2x2 will be tried)
+
+		see if possible to do 2x2 with forced blanking of right column:
+
+		if (pULchar+8 > pULcharLimit and
+			pULcopy[_000] != 0 and pULcopy[_800] != 0)
+		then
+
+			rightColumnBlank = 1 (try it)
+			
+			try 4 flips, choose best one and recurse:
+
+			if (cut2x2AllFlips() == 1) (weight ok)
+			then
+
+				pULchar += 8
+				pULcopy += 16
+				cutRowColumn() (NOTE ALL LOCAL VARS USUALLY LOST)
+				pULchar -= 8
+				pULcopy -= 16
+
+				undoCut2x2()
+
+		rightColumnBlank = 0 (don't force right column to be blank)
+
+		try 4 flips, choose best one and recurse:
+
+		if (cut2x2AllFlips() == 1) (weight ok)
+		then
+
+			pULchar += 8*2
+			pULcopy += 16*2
+			cutRowColumn() (NOTE ALL LOCAL VARS USUALLY LOST)
+			pULchar -= 8*2
+			pULcopy -= 16*2
+
+			undoCut2x2()
+	
+	Cut left column into 0:2 1x1's:
+
+	if (pULcopy[_000] != 0) (upper left transparent?)
+	then
+		if (cut1x1AllFlips(
+			pULchar & _ff,
+			pULchar & _ff00 >> 8,
+			pULchar,
+			pULcopy) == 0) (abort early?))
+        then
+			goto cutRowColumnReturn
+
+	if (pULcopy[_800] != 0) (lower left transparent?)
+	then
+		if (cut1x1AllFlips(
+			pULchar & _ff,
+			pULchar & _ff00 >> 8 + 8,
+			pULchar+_800,
+			pULcopy+_800*2) == 0) (abort early?)
+        then
+            (will abort early)
+            if (pULcopy[_000] != 0) (upper left transparent?)
+            then
+                undoCut1x1()
+			goto cutRowColumnReturn
+
+	go 1 column to right and recurse:
+
+	pULchar += 8
+	pULcopy += 16
+	cutRowColumn() (NOTE ALL LOCAL VARS USUALLY LOST!)
+	pULchar -= 8
+	pULcopy -= 16
+
+	if (pULcopy[_800] != 0) (lower left transparent?)
+	then
+		undoCut1x1()
+
+	if (pULcopy[_000] != 0) (upper left transparent?)
+	then
+		undoCut1x1()
+
+	goto cutRowColumnReturn
+
+
+
+
+chkMir()
+
+	if mirroring, then cut mirrored objs.
+	If best weight, then record objs
+		
+	if (p1x1CloseMirBeg < 0) (not set yet)
+	then
+		p1x1CloseMirBeg = p1x1End
+		p2x2CloseMirBeg = p2x2End
+
+	if (mirror)
+	then
+		get start of mirror objs which have not had their weight added:
+
+		p1x1Mir = p1x1CloseMirBeg
+		p2x2Mir = p2x2CloseMirBeg
+		
+		pULlimitMir = pULchar & _ffffff00 +
+			rightXMirCenter - (pULchar-pULcharLimit)
+		(you must continue cutting while x (before mirror, before flip)
+			is <= this)
+			
+		cutMir() (cut best mirror combination, check best weight)
+	else
+		chkWeight()
+	return()
+
+
+
+cutMir()
+
+;	this will cut the next 1x1 or 2x2 as a mirror obj and recurse
+;	for the remaining objs.
+;	Note this is called only for objects close to mirror center
+;	The mirror objects which were far away (and weight auto-added)
+;		must be added to object lists by chkWeight
+
+	decide if 1x1 or 2x2 was 1st cut originally:
+
+	if (p1x1Mir != p1x1End)
+	then
+
+		(1x1 exists)
+
+		if (p2x2Mir != p2x2End)
+		then	
+
+			(1x1 and 2x2 exist)
+			
+			if (p1x1Mir[UL_X] < p2x2Mir[UL_X])
+			then
+				goto do1x1 (below)
+
+			else
+				goto do2x2 (below)
+			
+		(only 1x1 exists)
+
+		goto do1x1 (below)
+
+	(1x1 does not exist)
+
+	if (p2x2Mir == p2x2End)
+	then
+	
+		(neither 1x1 or 2x2 exist)
+
+		chkWeight()
+		return()
+
+	do2x2::
+		
+	if (p2x2Mir[UL_X] > pULlimitMir)
+	then
+	
+		(remaining mirror objs no longer needed)	
+	
+		chkWeight() (done above)
+		return()
+
+	check if right half of 2x2 (before mirror) could be ignored:
+
+	if (p2x2Mir[UL_X]+8 > pULlimitMir)
+	then
+
+		right half of 2x2 (before mirror) could be ignored
+
+		cut left half of 2x2 (before mirror, before flip) into 1:2 1x1's
+
+		case (p2x2Mir[UL_CHAR] & _30000) (check for flips:)
+			_00000:	ULcopy_ = UL_COPY
+					LLcopy_ = LL_COPY
+					breakCase
+			_10000:	ULcopy_ = UR_COPY
+					LLcopy_ = LR_COPY
+					breakCase
+			_20000:	ULcopy_ = LL_COPY
+					LLcopy_ = UL_COPY
+					breakCase
+			_30000:	ULcopy_ = LR_COPY
+					LLcopy_ = UR_COPY
+					breakCase
+
+		ensure weight will be ok:
+
+		if (p2x2Mir[ULcopy_] != 0 and p2x2Mir[LLcopy_] != 0)
+		then
+			num1x1s_ = 2
+		else
+			num1x1s_ = 1
+
+		if (weight + (WEIGHT_OBJ + WEIGHT_FLICKER) * num1x1s_ < bestWeight)
+		then
+		
+			weight += (WEIGHT_OBJ + WEIGHT_FLICKER) * num1x1s_
+
+			(weight is ok)
+
+			if (p2x2Mir[ULcopy_] != 0)
+			then
+				p1x1End[UL_X] = rightXMirCenter +
+					(leftXMirCenter-p2x2Mir[UL_X]) - 7
+				p1x1End[UL_Y] = p2x2Mir[UL_Y]
+				p1x1End[COPY] = p2x2Mir + ULcopy_ + UL_CHAR-UL_COPY
+				p1x1End[CHAR] = (*p1x1End[COPY]) bitXor _100ff - 7
+	
+				p1x1End += _1X1_SIZE
+
+			if (p2x2Mir[LLcopy_] != 0)
+			then
+				p1x1End[UL_X] = rightXMirCenter +
+					(leftXMirCenter-p2x2Mir[UL_X]) - 7
+				p1x1End[UL_Y] = p2x2Mir[UL_Y] + 8
+				p1x1End[COPY] = p2x2Mir + LLcopy_ + LL_CHAR-LL_COPY
+				p1x1End[CHAR] = (*p1x1End[COPY]) bitXor _100ff - 7
+	
+				p1x1End += _1X1_SIZE
+
+			recurse to next mirror obj:
+
+			p1x1Mir += _1X1_SIZE
+			push(num1x1s_)
+			cutMir() (ALL LOCAL VARS USUALLY LOST!)
+			pop(num1x1s_)
+			p1x1Mir -= _1X1_SIZE
+
+			undoCut1x1()
+			if (num1x1s_ == 2)
+			then
+				undoCut1x1()
+
+			if (num1x1s_ == 1)
+			then
+				return() (don't cut 2x2, as a single 1x1 will be better
+					that a 2x2 which only needs to show 1 char)
+
+	cut 2x2 mirror obj:
+
+	if (weight + WEIGHT_OBJ + WEIGHT_FLICKER*4 < bestWeight)
+	then
+	
+		weight += WEIGHT_OBJ + WEIGHT_FLICKER*4
+		
+		cut2x2Mir(p2x2Mir) (won't effect weight)
+		
+		recurse to next mirror obj:
+
+		p2x2Mir += _2X2_SIZE
+		cutMir() (NOTE LOCAL VARS USUALLY LOST!)
+		p2x2Mir -= _2X2_SIZE
+		
+		undoCut2x2()
+
+	return()
+	
+	do1x1::
+
+	if (p1x1Mir[UL_X] > pULlimitMir)
+	then
+	
+		(remaining mirror objs no longer needed)	
+	
+		chkWeight()
+		return()
+
+	ensure weight will be ok:
+
+	if (weight + WEIGHT_OBJ + WEIGHT_FLICKER >= bestWeight)
+	then
+		return() (abort early)
+
+	weight += WEIGHT_OBJ + WEIGHT_FLICKER
+	
+	chkCopyOfReassign(p1x1Mir) (if copy of reassigned 1x1,
+		set correct CHAR and COPY values)
+
+	p1x1End[UL_X] = rightXMirCenter +
+		(leftXMirCenter-p1x1Mir[UL_X]) - 7
+	p1x1End[UL_Y] = p1x1Mir[UL_Y]
+	p1x1End[COPY] = p1x1Mir + CHAR
+	p1x1End[CHAR] = p1x1Mir[CHAR] bitXor _100ff - 7 (flip x)
+	
+	p1x1End += _1X1_SIZE
+
+	recurse to next mirror obj:
+
+	p1x1Mir += _1X1_SIZE
+	cutMir() (ALL LOCAL VARS USUALLY LOST!)
+	p1x1Mir -= _1X1_SIZE
+
+	undoCut1x1()
+
+	return()
+
+
+
+chkCopyOfReassign(p1x1_)
+
+	check if 1x1 is copy of a reassigned 1x1.  If so, evaluate which
+		flip of the original 1x1 is needed.
+
+	will return nothing
+
+
+	if (p1x1_[COPY] >= 128K and p1x1_[COPY] < p2x2Beg) (if copy of 1x1 char)
+	then
+		p2nd_ = p1x1_ - CHAR
+		if (p2nd_[COPY] >= 128K) (if copy is to a copy of 1 2x2 char)
+		then
+			p1x1_[COPY] = p2nd_[COPY]
+			pChar1_ = p1x1_[CHAR]
+			pChar2_ = *(p2nd_[Copy])
+			
+			if (pixelMatch(pChar1_,pChar2_))
+			then
+				return() (p1x1_[CHAR] is valid)
+
+			pChar1_ = pChar1_ bitXor _100ff - 7 (x flip it)
+			if (pixelMatch(pChar1_,pChar2_))
+			then
+				goto gotIt
+
+			pChar1_ = pChar1_ bitXor _2ff00 - _700 (y flip it)
+			if (pixelMatch(pChar1_,pChar2_))
+			then
+				goto gotIt
+
+			pChar1_ = pChar1_ bitXor _100ff - 7 (x flip it)
+			(this must be a match)
+			
+			gotIt::
+
+			p1x1_[CHAR] = pChar1_
+			return()
+			
+	return()
+
+				
+				
+cut2x2Mir(p2x2Mir_)
+
+	cut 2x2 which is x flip mirror of pre-cut 2x2 at p2x2Mir_
+	Note weight is NOT updated
+
+	will return nothing
+
+
+	p2x2End[UL_X] = rightXMirCenter + (leftXMirCenter-p2x2Mir_[UL_X]) - 15
+	p2x2End[UL_Y] = p2x2Mir_[UL_Y]
+	p2x2End[2X2_COPY] = p2x2Mir_
+	p2x2End[UL_CHAR] = p2x2Mir_[UL_CHAR] bitXor _10000 (set flip bits)
+		NOTE THE REST OF THIS INDEX AND ALL THE OTHER INDICIES REALLY
+		DON'T HAVE TO BE SET, SO I'M SAVING SOME TIME IN WRITING THIS
+		AND HAVING IT EXECUTED.
+	
+	p2x2End += _2X2_SIZE
+
+	return()
+
+
+
+cut2x2 (p2x2End[UL_X],p2x2End[UL_Y],
+		p2x2End[UL_CHAR],p2x2End[UL_COPY],
+		p2x2End[LL_CHAR],p2x2End[LL_COPY],
+		p2x2End[UR_CHAR],p2x2End[UR_COPY],
+		p2x2End[LR_CHAR],p2x2End[LR_COPY])
+
+	this will cut a 2x2 obj and chars and update weights
+
+	note when obj is to be flipped, the chars must be switched in
+		position, and the flipped versions of the chars must be passed
+	note all xx_COPY inputs = -1 or 0:64K-1 on input
+
+	will return:	0 if caller must abort early (2x2 already uncut)
+					1 if call can continue (weight ok)
+
+
+	weight += WEIGHT_OBJ + WEIGHT_FLICKER*4
+	if (pULchar < pULcloseMir)
+	then
+		weight += WEIGHT_OBJ + WEIGHT_FLICKER*4
+	(vram and rom weight done below)
+		
+	if (weight >= bestWeight)
+	then
+		weight -= WEIGHT_OBJ + WEIGHT_FLICKER*4
+		if (pULchar < pULcloseMir)
+		then
+			weight -= WEIGHT_OBJ + WEIGHT_FLICKER*4
+		return(0) (caller must abort early)
+
+	p2x2End[UL_REASSIGN] = -1 (assume no reassignments)
+	p2x2End[LL_REASSIGN] = -1
+	p2x2End[UR_REASSIGN] = -1
+	p2x2End[LR_REASSIGN] = -1
+	
+	check to see if this 2x2 can use a copy of another 2x2 in the
+		image being cut:
+
+	blank_ul_ = (p2x2End[UL_COPY] == 0) ? 1 : 0
+	blank_ll_ = (p2x2End[LL_COPY] == 0) ? 1 : 0
+	blank_ur_ = (p2x2End[UR_COPY] == 0) ? 1 : 0
+	blank_lr_ = (p2x2End[LR_COPY] == 0) ? 1 : 0
+	
+	for (p2x2_ = p2x2End - _2X2_SIZE ; p2x2_ >= p2x2Beg ; p2x2_ -= _2X2_SIZE)
+	
+		if (p2x2_[VRAM_COPY] < 0) (if no vram copy, thus vram used)
+		then
+
+			see if match with 4 chars:
+
+			(note it might be faster to ignore check for blank
+			 and just go to pixelMatch code)
+
+			blank_ = (p2x2_[UL_COPY] == 0) ? 1 : 0
+			if (blank_ul_ != blank_)
+			then
+				nextFor (no match)
+			if (!blank_)
+			then
+				if (!pixelMatch(p2x2End[UL_CHAR],p2x2_[UL_CHAR]) )
+				then
+					nextFor (no match)
+
+			blank_ = (p2x2_[LL_COPY] == 0) ? 1 : 0
+			if (blank_ll_ != blank_)
+			then
+				nextFor (no match)
+			if (!blank_)
+			then
+				if (!pixelMatch(p2x2End[LL_CHAR],p2x2_[LL_CHAR]) )
+				then
+					nextFor (no match)
+
+			blank_ = (p2x2_[UR_COPY] == 0) ? 1 : 0
+			if (blank_ur_ != blank_)
+			then
+				nextFor (no match)
+			if (!blank_)
+			then
+				if (!pixelMatch(p2x2End[UR_CHAR],p2x2_[UR_CHAR]) )
+				then
+					nextFor (no match)
+
+			blank_ = (p2x2_[LR_COPY] == 0) ? 1 : 0
+			if (blank_lr_ != blank_)
+			then
+				nextFor (no match)
+			if (!blank_)
+			then
+				if (!pixelMatch(p2x2End[LR_CHAR],p2x2_[LR_CHAR]) )
+				then
+					nextFor (no match)
+
+			(duplicate 2x2 found!)
+
+			(no vram or rom weight added)
+				
+			p2x2End[2X2_COPY] = p2x2_
+			
+			p2x2End += _2X2_SIZE
+
+			return()
+			
+	(no 2x2 match found)
+
+	weight += WEIGHT_VRAM*4
+	(note it is remotely possible that each char could reassign a 1x1 and
+		thus no effective weight would be added)
+	(no vram effect for mirror)
+	(rom weight done below)
+
+	p2x2End[2X2_COPY] = -1 (no 2x2 copy, thus vram used)
+
+	now we need to find where 4 chars are in rom:
+
+	for each of 4 chars:
+	
+	p2x2End[UL_COPY] = cut2x2Sub(p2x2End+UL_CHAR,0)
+
+	p2x2End[LL_COPY] = cut2x2Sub(p2x2End+LL_CHAR,1)
+
+	p2x2End[UR_COPY] = cut2x2Sub(p2x2End+UR_CHAR,2)
+
+	p2x2End[LR_COPY] = cut2x2Sub(p2x2End+LR_CHAR,3)
+
+	p2x2End += _2X2_SIZE
+
+	if (weight >= bestWeight)
+	then
+		undoCut2x2()
+		return(0) (caller must abort)
+
+	return(1) (call may continue)
+
+
+
+cut2x2Sub(pCharIndex_,2x2Flag_)
+
+;	pCharIndex_ = adrs of 2x2[UL_CHAR] (or LL,UR,LR) entry
+;	note 2x2 can already be flipped
+;	2x2Flag_:	0 = ignore
+;				1:3 = #chars to allow to check in last 2x2 just being
+;					created (not yet declared allocated)
+;
+;	will return:
+;   	(neg)	vram used for new char
+;		0:64K-1	vram used, packed copy
+;       >= 128K	no vram used, adrs of copied 2x2[xx_CHAR]
+
+;	main flow is:
+;
+;	if transparent
+;	then
+;		already declared so, done
+;	else
+;		if any previous new 1x1 char can be reassigned
+;				as copy of this 2x2 char
+;		then
+;			do so.  (save 1 vram char).  2x2 char is new or packed copy
+;			(note there won't be a copy in another 2x2)
+;		else
+;			if char exists in packed chars
+;			then
+;				use copy of it (already declared so, thus no code needed)
+;			else
+;				if char exists in any previous new 2x2
+;				then
+;					use copy of it
+;				else
+;					this is new 2x2 char (add rom weight)
+					
+
+	pCopy_ = *(pChar_ + UL_COPY-UL_CHAR)
+	if (pCopy_ == 0) (blank)
+	then
+		return(0)
+
+	pChar_ = *pCharIndex_ (get adrs of char as would appear in vram)
+
+	scan 1x1's to reassign a 1x1 char to the 2x2 char:
+				
+	for (p1x1_ = p1x1End-_1X1_SIZE ; p1x1_ >= p1x1Beg ; p1x1_ -= _1X1_SIZE)
+	
+		if (p1x1_[COPY] < 64K) (if new char or packed copy)
+		then
+
+			see if char match:
+
+			(note a 1x1 char will never be transparent)
+
+			p1x1Char_ = p1x1_[UL_CHAR] (char as appears in vram)
+			if (pixelMatch(pChar_, p1x1Char_) )
+			then
+
+				reassign::
+
+				p1x1_[CHAR_SAVE] = p1x1_[CHAR] (save value)
+				p1x1_[CHAR] = p1x1Char_
+
+				weight -= WEIGHT_VRAM_CHAR (saved previous 1x1 vram char)
+				(no vram effect for mirror)
+				(rom weight not added)
+
+				p1x1_[COPY_SAVE] = p1x1_[COPY] (save value)
+				p1x1_[COPY] = pCharIndex_
+				
+				*(pCharIndex_+UL_REASSIGN-UL_CHAR) = p1x1_
+					(set 2x2[xx_REASSIGN])
+
+				return(*(pCharIndex_+UL_COPY-UL_CHAR) (new 2x2 or
+					copy of packed char)
+
+			try 3 other flips of 1x1 to get reassignment:
+
+			try x flip:
+
+			p1x1Char_ = p1x1Char_ bitXor _100ff - _007
+			if (pixelMatch(pChar_, p1x1Char_) )
+			then
+				goto reassign (above)
+
+			try xy flip:
+
+			p1x1Char_ = p1x1Char_ bitXor _2ff00 - _700
+			if (pixelMatch(pChar_, p1x1Char_) )
+			then
+				goto reassign (above)
+
+			try y flip:
+
+			p1x1Char_ = p1x1Char_ bitXor _100ff - _007
+			if (pixelMatch(pChar_, p1x1Char_) )
+			then
+				goto reassign (above)
+
+    (no 1x1 match found)
+
+	check if packed char exists:
+
+	if (pCopy_ >= 0) (packed char exists)
+	then
+		return(pCopy_)
+
+	scan 2x2's for a match with any of 4 chars:
+				
+	for (p2x2_ = (2x2Flag_ != 0) ? p2x2End : p2x2End-_2X2_SIZE
+			; p2x2_ >= p2x2Beg ; p2x2_ -= _2X2_SIZE)
+	
+		if (p2x2_[2X2_COPY] < 0) (if new obj, thus vram used)
+		then
+
+			see if match with any chars:
+
+			if (p2x2_[UL_COPY] < 0 (new char) and
+				pixelMatch(pChar_, p2x2_[UL_CHAR]) )
+			then
+				return(p2x2_+UL_CHAR) (match!)
+				(no rom weight added)
+
+			if (p2x2_[LL_COPY] < 0 (new char) and
+				2x2Flag_ != 1 and
+				pixelMatch(pChar_, p2x2_[LL_CHAR]) )
+			then
+				return(p2x2_+LL_CHAR) (match!)
+				(no rom weight added)
+
+			if (p2x2_[UR_COPY] < 0 (new char) and
+				(2x2Flag_ == 0 or 2x2Flag_ == 3) and
+				pixelMatch(pChar_, p2x2_[UR_CHAR]) )
+			then
+				return(p2x2_+UR_CHAR) (match!)
+				(no rom weight added)
+
+			if (p2x2_[LR_COPY] < 0 (new char) and
+				2x2Flag_ == 0 and
+				pixelMatch(pChar_, p2x2_[LR_CHAR]) )
+			then
+				return(p2x2_+LR_CHAR) (match!)
+				(no rom weight added)
+
+            2x2Flag_ = 0
+
+    (no copy with 1x1, packed, or 2x2 found)
+    (thus this is a new 2x2 char)
+
+    weight += WEIGHT_ROM_CHAR
+	(no effect for mirror)
+
+    return(-1) (new 2x2 char)
+
+	
+
+pixelMatch(pChar_, pChar2_)
+
+    Do 64 pixel compare to see if chars are the same.
+    Note code should already check for either char being transparent
+    before getting here (but if not then code works anyway)
+
+	will return:	0 if no match
+					1 if match
+
+    
+	(squeeze every cycle out of this code!)
+
+	if (pChar_[_000:_007] == pChar2_[_000:_007] and
+		pChar_[_100:_107] == pChar2_[_100:_107] and
+		pChar_[_200:_207] == pChar2_[_200:_207] and
+		pChar_[_300:_307] == pChar2_[_300:_307] and
+		pChar_[_400:_407] == pChar2_[_400:_407] and
+		pChar_[_500:_507] == pChar2_[_500:_507] and
+		pChar_[_600:_607] == pChar2_[_600:_607] and
+		pChar_[_700:_707] == pChar2_[_700:_707])
+	then
+		return(1)
+	else
+		return(0)
+
+
+
+chkWeight()
+
+;	if this is new best weight so far
+;	then
+;		remember weight
+;		if mirroring
+;		then 
+;			cut mirrored objs that were not cut by cutMir()
+;		save 1x1 and 2x2 obj lists
+;		if mirroring
+;		then 
+;			uncut mirrored objs that were not cut by cutMir()
+
+
+	if (weight >= bestWeight)
+	then
+		return()
+
+	bestWeight = weight
+	
+	if (mirror)
+	then
+		push(p1x1End)
+		push(p2x2End)
+
+		for (p1x1Mir_ = p1x1RowBeg ; p1x1Mir_ < p1x1CloseMirBeg ;
+			 p1x1Mir_ += _1X1_SIZE)
+
+			chkCopyOfReassign(p1x1Mir_) (if copy of reassigned 1x1,
+				set correct CHAR and COPY values)
+
+			p1x1End[UL_X] = rightXMirCenter +
+				(leftXMirCenter-p1x1Mir_[UL_X]) - 7
+			p1x1End[UL_Y] = p1x1Mir_[UL_Y]
+			p1x1End[COPY] = p1x1Mir_ + CHAR
+			p1x1End[CHAR] = p1x1Mir_[CHAR] bitXor _100ff - 7 (flip x)
+				
+			(other indicies need not be set)
+			
+			p1x1End += _1X1_SIZE
+
+		for (p2x2Mir_ = p2x2RowBeg ; p2x2Mir_ < p2x2CloseMirBeg ;
+			 p2x2Mir_ += _2X2_SIZE)
+			 
+			cut2x2Mir(p2x2Mir_) (no effect on weight)
+		
+	move ram from p1x1Beg, length p1x1End-p1x1Beg,
+		to p1x1BestBeg (length may be 0)
+	p1x1BestEnd = p1x1BestBeg + (p1x1End-p1x1Beg)
+
+	move ram from p2x2Beg, length p2x2End-p2x2Beg,
+		to p2x2BestBeg (length may be 0)
+	p2x2BestEnd = p2x2BestBeg + (p2x2End-p2x2Beg)
+
+	if (mirror)
+	then
+		pop(p2x2End)
+		pop(p1x1End)
+	
+	return()
+
+
+
+cut2x2AllFlips()
+	
+	must try all 4 flips of 2x2 to find best one:
+    Note input chars are not flipped
+	note rightColumnBlank = 0 (normally) or 1 to force right column to be blank
+    
+    Will return:
+        0   caller must abort, best weight too much
+        1   call can continue, best weight ok
+
+
+	bestFlip_ = -1
+	bestEverWeight_ = bestWeight
+
+	if (cut2x2XFlip() == 1) (continue)
+	then
+		if (weight < bestEverWeight_)
+		then
+			bestFlip_ = 1
+			bestEverWeight_ = weight
+		undoCut2x2()
+
+	if (cut2x2YFlip() == 1) (continue)
+	then
+		if (weight < bestEverWeight_)
+		then
+			bestFlip_ = 2
+			bestEverWeight_ = weight
+		undoCut2x2()
+
+	if (cut2x2XYFlip() == 1) (continue)
+	then
+		if (weight < bestEverWeight_)
+		then
+			bestFlip_ = 3
+			bestEverWeight_ = weight
+		undoCut2x2()
+
+	if (cut2x2NoFlip() == 1) (continue)
+	then
+		if (weight <= bestEverWeight_)
+		then
+			bestFlip_ = 0
+			bestEverWeight_ = weight
+		(note cut not undone)
+
+	if (bestFlip_ < 0)
+	then
+		return(0) (caller must abort, weight too much)
+
+	if (bestFlip_ != 0)
+	then
+		undoCut2x2()
+		if (bestFlip_ == 1)	
+		then
+			cut2x2XFlip() (ignore return value)
+		else
+			if (bestFlip_ == 2)
+			then
+				cut2x2YFlip() (ignore return value)
+			else
+				cut2x2XYFlip() (ignore return value)
+
+	return(1) (caller can continue)
+
+
+
+cut2x2NoFlip()
+
+;	cut a 2x2, with no flip
+
+	will return:	0 if caller must abort early, 2x2 uncut here
+					1 if caller can continue, weight ok
+
+
+	if (rightColumnBlank)
+	then
+		return(	cut2x2 (  pULchar & _ff, pULchar & _ff00 >> 8,
+				
+						  pULchar + _000,
+						*(pULcopy + _000*2),
+
+						  pULchar + _800,
+						*(pULcopy + _800*2),
+
+						pChar, (blank, no flip)
+						0,
+
+						pChar, (blank, no flip)
+						0
+					   )
+			  )
+	else
+		return(	cut2x2 (  pULchar & _ff, pULchar & _ff00 >> 8,
+				
+						  pULchar + _000,
+						*(pULcopy + _000*2),
+
+						  pULchar + _800,
+						*(pULcopy + _800*2),
+
+						  pULchar + _008,
+						*(pULcopy + _008*2),
+
+						  pULchar + _808,
+						*(pULcopy + _808*2)
+					   )
+			  )
+
+
+
+cut2x2XFlip()
+
+;	cut a 2x2, with x flip
+
+	will return:	0 if caller must abort early, 2x2 uncut here
+					1 if caller can continue, weight ok
+
+
+	if (rightColumnBlank)
+	then
+		return(	cut2x2 (  pULchar & _ff, pULchar & _ff00 >> 8,
+		
+						pXChar, (blank, x flip bit)
+						0,
+
+						pXChar, (blank, x flip bit)
+						0,
+
+						  pULchar bitXor  _100ff 	         - _007,
+						*(pULcopy bitXor (_100ff*2)	         - _007*2),
+	
+						  pULchar bitXor  _100ff    + _800   - _007,
+						*(pULcopy bitXor (_100ff*2) + _800*2 - _007*2)
+					   )
+			  )
+	else
+		return(	cut2x2 (  pULchar & _ff, pULchar & _ff00 >> 8,
+		
+						  pULchar bitXor  _100ff 	         - _00f,
+						*(pULcopy bitXor (_100ff*2)			 - _00f*2),
+
+						  pULchar bitXor  _100ff    + _800   - _00f,
+						*(pULcopy bitXor (_100ff*2) + _800*2 - _00f*2),
+
+						  pULchar bitXor  _100ff 	         - _007,
+						*(pULcopy bitXor (_100ff*2)	         - _007*2),
+	
+						  pULchar bitXor  _100ff    + _800   - _007,
+						*(pULcopy bitXor (_100ff*2) + _800*2 - _007*2)
+					   )
+			  )
+
+
+
+cut2x2YFlip()
+
+;	cut a 2x2, with y flip
+
+	will return:	0 if caller must abort early, 2x2 uncut here
+					1 if caller can continue, weight ok
+
+
+	if (rightColumnBlank)
+	then
+		return(	cut2x2 (  pULchar & _ff, pULchar & _ff00 >> 8,
+		
+						  pULchar bitXor  _2ffff    - _f00,
+						*(pULcopy bitXor (_2ffff*2) - _f00*2),
+
+						  pULchar bitXor  _2ffff    - _700,
+						*(pULcopy bitXor (_2ffff*2) - _700*2),
+
+						pYChar, (blank, y flip bit)
+						0,
+
+						pYChar, (blank, y flip bit)
+						0
+					   )
+			  )
+	else
+		return(	cut2x2 (  pULchar & _ff, pULchar & _ff00 >> 8,
+		
+						  pULchar bitXor  _2ffff    - _f00,
+						*(pULcopy bitXor (_2ffff*2) - _f00*2),
+
+						  pULchar bitXor  _2ffff    - _700,
+						*(pULcopy bitXor (_2ffff*2) - _700*2),
+
+						  pULchar bitXor  _2ff00    - _f00   + _008,
+						*(pULcopy bitXor (_2ff00*2) - _f00*2 + _008*2),
+
+						  pULchar bitXor  _2ff00    - _700   + _008,
+						*(pULcopy bitXor (_2ff00*2) - _700*2 + _008*2)
+					   )
+			  )
+
+cut2x2XYFlip()
+
+;	cut a 2x2, with x&y flip
+
+	will return:	0 if caller must abort early, 2x2 uncut here
+					1 if caller can continue, weight ok
+
+
+	if (rightColumnBlank)
+	then
+		return(	cut2x2 (  pULchar & _ff, pULchar & _ff00 >> 8,
+		
+						XY_FLIP,
+		
+				pXYChar, (blank, xy flip bits)
+						0,
+		
+				pXYChar, (blank, xy flip bits)
+						0,
+						
+				pXYImage + (pULchar & _ffff bitXor _ffff - _f07),
+						*(pULcopy + _800*2 + pXYCopy-pCopy),
+		
+						pXYImage + (pULchar & _ffff bitXor _ffff - _707),
+				*(pULcopy + _000*2 + pXYCopy-pCopy)
+					   )
+			  )
+	else
+		return(	cut2x2 (  pULchar & _ff, pULchar & _ff00 >> 8,
+		
+						  pULchar bitXor  _3ffff    - _f0f,
+						*(pULcopy bitXor (_3ffff*2) - _f0f*2),
+
+						  pULchar bitXor  _3ffff    - _70f,
+						*(pULcopy bitXor (_3ffff*2) - _70f*2),
+
+						  pULchar bitXor  _3ffff    - _f07,
+						*(pULcopy bitXor (_3ffff*2) - _f07*2),
+
+						  pULchar bitXor  _3ffff    - _707,
+						*(pULcopy bitXor (_3ffff*2) - _707*2),
+					   )
+			  )
+
+
+
+undoCut2x2 ()
+
+	this will undo the cutting of the last 2x2
+
+	weight -= (WEIGHT_OBJ + WEIGHT_FLICKER*4)
+	if (pULchar < pULcloseMir)
+	then
+		weight -= (WEIGHT_OBJ + WEIGHT_FLICKER*4)
+	(vram and rom weight done below)
+
+	p2x2End -= _2X2_SIZE (p2x2End now points to 2x2 being freed)
+
+	check to see if this 2x2 was a copy of another 2x2 in the
+		image being cut:
+
+	if (p2x2End[2X2_COPY] >= 0) (if obj copied)
+	then
+
+		(no vram or rom weight was added when cut)
+				
+		return()
+			
+	(no obj copy, new obj and vram used)
+
+	weight -= WEIGHT_VRAM*4
+	(no effect for mirror)
+	(rom weight done below)
+
+	check for reassigned 1x1's:
+
+	p1x1_ = p2x2End[UL_REASSIGN]
+	if (p1x1_ >= 0)
+	then
+		undoReassign() (p1x1_ scope is passed) (code below)
+
+	p1x1_ = p2x2End[LL_REASSIGN]
+	if (p1x1_ >= 0)
+	then
+		undoReassign() (p1x1_ scope is passed) (code below)
+
+	p1x1_ = p2x2End[UR_REASSIGN]
+	if (p1x1_ >= 0)
+	then
+		undoReassign() (p1x1_ scope is passed) (code below)
+
+	p1x1_ = p2x2End[LR_REASSIGN]
+	if (p1x1_ >= 0)
+	then
+		undoReassign() (p1x1_ scope is passed) (code below)
+
+	if (p2x2End[UL_COPY] < 0) (if new char)
+	then
+	    weight -= WEIGHT_ROM_CHAR
+		(no effect for mirror)
+
+	if (p2x2End[LL_COPY] < 0) (if new char)
+	then
+	    weight -= WEIGHT_ROM_CHAR
+		(no effect for mirror)
+
+	if (p2x2End[UR_COPY] < 0) (if new char)
+	then
+	    weight -= WEIGHT_ROM_CHAR
+	    (no effect for mirror)
+
+	if (p2x2End[LR_COPY] < 0) (if new char)
+	then
+	    weight -= WEIGHT_ROM_CHAR
+		(no effect for mirror)
+
+    return()
+
+
+
+undoReassign()
+
+	undo reassignment of 1x1 char as copy of char in 2x2:
+	scope of p1x1_ from undoCut2x2() is valid here
+
+	weight += WEIGHT_VRAM_CHAR (cut had saved previous 1x1 vram char)
+	(no effect for mirror)
+	(rom weight not added)
+		
+	p1x1_[CHAR] = p1x1_[CHAR_SAVE]
+	p1x1_[COPY] = p1x1_[COPY_SAVE]
+
+	return()
+
+
+
+cut1x1AllFlips(ul_x_,ul_y_,pULchar_,pULcopy_)
+
+    Find best cut of 1x1 among 4 flips
+    Note char is not transparent (checked before call)
+	Note this code is not to be used for cutting an x-mirrored char of
+		another char (when mirror == 1)
+
+;    NOTE: scope of ul_x_, ul_y_, pULchar_ and pULcopy_ is extended to:
+;		cut1x1NoFlip()
+;       cut1x1XFlip()
+;       cut1x1YFlip()
+;       cut1x1XYFlip()
+
+    Will return:
+        0   best flip cut has weight >= bestEverWeight, so you must abort early
+                (note 1x1 is uncut by this code)
+        1   best flip cut has ok weight, caller can continue normally
+
+    
+	bestFlip_ = -1
+	bestEverWeight_ = bestWeight
+
+	if (cut1x1XFlip() == 1) (continue)
+	then
+		if (weight < bestEverWeight_)
+		then
+			bestFlip_ = 1
+			bestEverWeight_ = weight
+		undoCut1x1()
+
+	if (cut1x1YFlip() == 1) (continue)
+	then
+		if (weight < bestEverWeight_)
+		then
+			bestFlip_ = 2
+			bestEverWeight_ = weight
+		undoCut1x1()
+
+	if (cut1x1XYFlip() == 1) (continue)
+	then
+		if (weight < bestEverWeight_)
+		then
+			bestFlip_ = 3
+			bestEverWeight_ = weight
+		undoCut1x1()
+
+	if (cut1x1NoFlip() == 1) (continue)
+	then
+		if (weight <= bestEverWeight_)
+		then
+			bestFlip_ = 0
+			bestEverWeight_ = weight
+		(note cut not undone)
+
+	if (bestFlip_ < 0)
+	then
+		return(0) (caller must abort, weight too much)
+
+	if (bestFlip_ != 0)
+	then
+		undoCut1x1()
+		if (bestFlip_ == 1)	
+		then
+			cut1x1XFlip() (ignore return value)
+		else
+			if (bestFlip_ == 2)
+			then
+				cut1x1YFlip() (ignore return value)
+			else
+				cut1x1XYFlip() (ignore return value)
+
+	return(1) (caller can continue)
+
+
+
+cut1x1NoFlip()
+
+;	cut a 1x1, with no flip
+	Note this code is not to be used for cutting an x-mirrored char of
+		another char (when mirror == 1)
+
+    NOTE: scope of ul_x_,ul_y_,pULchar_, and pULcopy_ is extended
+		from cut1x1AllFlips()
+
+	will return		0: caller must abort early, 1x1 uncut here
+					1: caller can continue, weight ok
+
+
+	return	(cut1x1(ul_x_,ul_y_,
+					pULchar_,
+					*(pULcopy_)
+		   		   )
+			)
+
+
+
+cut1x1XFlip()
+
+;	cut a 1x1, with x flip
+	Note this code is not to be used for cutting an x-mirrored char of
+		another char (when mirror == 1)
+
+    NOTE: scope of ul_x_,ul_y_,pULchar_, and pULcopy_ is extended
+		from cut1x1AllFlips()
+
+	will return		0: caller must abort early, 1x1 uncut here
+					1: caller can continue, weight ok
+
+
+	return(	cut1x1 (ul_x_,ul_y_,
+					  pULchar bitXor  _100ff 	         - _007,
+					*(pULcopy bitXor (_100ff*2)			 - _007*2)
+				   )
+		  )
+
+
+
+cut1x1YFlip()
+
+;	cut a 1x1, with y flip
+	Note this code is not to be used for cutting an x-mirrored char of
+		another char (when mirror == 1)
+
+    NOTE: scope of ul_x_,ul_y_,pULchar_, and pULcopy_ is extended
+		from cut1x1AllFlips()
+
+	will return		0: caller must abort early, 1x1 uncut here
+					1: caller can continue, weight ok
+
+
+	return(	cut1x1 (ul_x_,ul_y_,
+					  pULchar bitXor  _2ffff    - _700,
+					*(pULcopy bitXor (_2ffff*2) - _700*2)
+				   )
+		  )
+
+
+
+cut1x1XYFlip()
+
+;	cut a 1x1, with xy flip
+	Note this code is not to be used for cutting an x-mirrored char of
+		another char (when mirror == 1)
+
+    NOTE: scope of ul_x_,ul_y_,pULchar_, and pULcopy_ is extended
+		from cut1x1AllFlips()
+
+	will return		0: caller must abort early, 1x1 uncut here
+					1: caller can continue, weight ok
+
+
+	return(	cut1x1 (ul_x_,ul_y_,
+					  pULchar bitXor  _3ffff    - _707,
+					*(pULcopy bitXor (_3ffff*2) - _707*2)
+				   )
+		  )
+
+
+
+cut1x1 (p1x1End[UL_X],p1x1End[UL_Y],p1x1End[CHAR],p1x1End[COPY])
+
+	this will cut a 1x1 obj and char and update weights
+	don't call if char is transparent
+	Note this code is not to be used for cutting an x-mirrored char of
+		another char (when mirror == 1)
+
+	note when obj is to be flipped, the flipped versions of the char
+		must be passed
+	note p1x1End[UL_COPY] = -1 or 0:64K-1 on input
+
+	will return		0: caller must abort early, 1x1 uncut here
+					1: caller can continue, weight ok
+
+
+	weight += WEIGHT_OBJ + WEIGHT_FLICKER
+	if (pULchar < pULcloseMir)
+	then
+		weight += WEIGHT_OBJ + WEIGHT_FLICKER
+	(vram and rom weight done below)
+
+	if (weight >= bestWeight)
+	then
+		weight -= WEIGHT_OBJ + WEIGHT_FLICKER
+		if (pULchar < pULcloseMir)
+		then
+			weight -= WEIGHT_OBJ + WEIGHT_FLICKER
+		return(0) (caller must abort early)
+
+	check to see if this char is a copy of another new 1x1 in the
+		image being cut:
+
+	for (p1x1_ = p1x1End - _1X1_SIZE ; p1x1_ >= p1x1Beg ; p1x1_ -= _1X1_SIZE)
+	
+		if (p1x1_[COPY] < 64K) (if new char or copy of packed char)
+		then
+
+			then see if match with char:
+			(note 1x1 chars never transparent)
+
+			if (pixelMatch(p1x1End[CHAR],p1x1_[CHAR]) )
+			then
+
+				(duplicate 1x1 found!)
+
+				(no vram or rom weight added)
+				
+				p1x1End[COPY] = p1x1_ + UL_CHAR
+			
+				p1x1End += _1X1_SIZE
+
+				return()
+			
+	(no 1x1 match found)
+
+	check to see if this char is a copy of another char within
+		a 2x2 of the image being cut:
+
+	for (p2x2_ = p2x2End - _2X2_SIZE ; p2x2_ >= p2x2Beg ; p2x2_ -= _2X2_SIZE)
+	
+		if (p2x2_[2X2_COPY] < 0) (if new obj, vram exists)
+		then
+		
+			if (p2x2_[UL_COPY] < 64K) (if new char of copy of packed char)
+			then
+
+				see if match with char:
+
+				if (pixelMatch(p1x1End[CHAR],p2x2_[UL_CHAR]) )
+				then
+
+					(duplicate char in 2x2 found!)
+
+					(no vram or rom weight added)
+				
+					p1x1End[COPY] = p2x2_ + UL_CHAR
+			
+					p1x1End += _1X1_SIZE
+
+					return()
+			
+			if (p2x2_[LL_COPY] < 0) (if no char copy, thus new char)
+			then
+
+				see if match with char:
+
+				if (pixelMatch(p1x1End[CHAR],p2x2_[LL_CHAR]) )
+				then
+
+					(duplicate char in 2x2 found!)
+
+					(no vram or rom weight added)
+				
+					p1x1End[COPY] = p2x2_ + LL_CHAR
+			
+					p1x1End += _1X1_SIZE
+
+					return()
+			
+			if (p2x2_[UR_COPY] < 0) (if no char copy, thus new char)
+			then
+
+				see if match with char:
+
+				if (pixelMatch(p1x1End[CHAR],p2x2_[UR_CHAR]) )
+				then
+
+					(duplicate char in 2x2 found!)
+
+					(no vram or rom weight added)
+				
+					p1x1End[COPY] = p2x2_ + UR_CHAR
+			
+					p1x1End += _1X1_SIZE
+
+					return()
+			
+			if (p2x2_[LR_COPY] < 0) (if no char copy, thus new char)
+			then
+
+				see if match with char:
+
+				if (pixelMatch(p1x1End[CHAR],p2x2_[LR_CHAR]) )
+				then
+
+					(duplicate char in 2x2 found!)
+
+					(no vram or rom weight added)
+				
+					p1x1End[COPY] = p2x2_ + LR_CHAR
+			
+					p1x1End += _1X1_SIZE
+
+					return()
+			
+	(no 1x1 or 2x2 char match found)
+
+	weight += WEIGHT_VRAM
+	(no effect for mirror)
+	(rom weight done below)
+
+	check if char exists in packed chars
+	
+	if (p1x1End[COPY] >= 0) (0:<64K) (if packed copy exists)
+	then
+		(no rom weight added)
+
+		(note p1x1End[UL_COPY] already points to packed copy)
+
+	else
+
+	    (no char copy anywhere, thus new char)
+
+   		weight += WEIGHT_ROM_CHAR
+		(no effect for mirror)
+
+		(note p1x1End[COPY] already is -1)
+
+	if (weight >= bestWeight)
+	then
+		undoCut1x1()
+		return(0) (caller must abort)
+
+	return(1) (call can continue)
+
+
+
+undoCut1x1()
+
+	this will undo the last cut of a 1x1 obj and char and update weights.
+	Don't call if char is transparent
+
+	will return nothing
+
+
+	weight -= (WEIGHT_OBJ + WEIGHT_FLICKER)
+	if (mirror and pULchar < pULcloseMir)
+	then
+		weight -= (WEIGHT_OBJ + WEIGHT_FLICKER)
+	(vram and rom weight done below)
+
+	p1x1End -= _1X1_SIZE (p1x1End now at 1x1 obj to be uncut)
+
+	if (p1x1End[UL_COPY] < 0) (new char)
+	then
+
+		weight -= (WEIGHT_VRAM_CHAR + WEIGHT_ROM_CHAR)
+		(no effect for mirror)
+
+		return()
+
+	if (p1x1End[UL_COPY] < 64K) (packed char copy)
+	then
+
+		weight -= WEIGHT_VRAM_CHAR
+		(no effect for mirror)
+		(no rom weight was added)
+
+		return()
+
+	(char was copy of 1x1 or 2x2 image char)
+
+	(no vram or rom weight was added)
+
+	return()
+
+
+
+
+useBestCut()
+
+	declare best version of last cut to be permanent
+
+	move ram from p1x1BestBeg, length p1x1BestEnd-p1x1BestBeg,
+		to p1x1Beg (note length may be 0)
+
+	p1x1End = p1x1Beg + p1x1BestEnd-p1x1BestBeg
+
+	move ram from p2x2BestBeg, length p2x2BestEnd-p2x2BestBeg,
+		to p2x2Beg (note length may be 0)
+
+	p2x2End = p2x2Beg + p2x2BestEnd-p2x2BestBeg
+
+	weight = bestEverWeightBuilt
+
+	return()
+
+
+
+outputImage()
+
+	pPackImageBeg = pPackEnd (enable displayCut() to know if packed
+		char is new to this image)
+
+	cleanupObjects() (prepare objects to be output to files, if
+		packing allowed, then change image chars to packed chars
+		else change image chars to unpacked chars)
+
+	displayCut() (display image and cut to user, if required then
+		wait for user prompt before continuing or aborting here)
+		(code to be written)
+
+	addObjects() (add object data to temp version of master file)
+		(code to be written)
+
+	outputFiles() (output to temp files, then rename temp files
+		to correct names)
+		(code to be written)
+
+	return()
+
+
+
+cleanupObjects()
+
+	prepare objects for output to master files
+
+	move ram from p1x1BestBeg, length = p1x1BestEnd-p1x1BestBeg (may be 0),
+		to p1x1Beg
+	p1x1End = p1x1Beg + p1x1BestEnd-p1x1BestBeg
+
+	move ram from p2x2BestBeg, length = p2x2BestEnd-p2x2BestBeg (may be 0),
+		to p2x2Beg
+	p2x2End = p2x2Beg + p2x2BestEnd-p2x2BestBeg
+
+	for (p1x1_ = p1x1Beg ; p1x1_ < p1x1End ; p1x1_ += _1X1_SIZE)
+	
+		chkCopyOfReassign(p1x1_)
+
+	change image chars to packed or unpacked chars:
+
+	for (p1x1_ = p1x1Beg ; p1x1_ < p1x1End ; p1x1_ += _1X1_SIZE)
+		if (p1x1_[COPY] < 0) (new char)
+		then
+			p1x1_[COPY] = packChar(p1x1_[CHAR]) (pack it, set
+				new packed/unpacked char #)
+
+	for (p2x2_ = p2x2Beg ; p2x2_ < p2x2End ; p2x2_ += _2X2_SIZE)
+		if (p2x2_[2X2_COPY] < 0) (new obj)
+		then
+		
+			if (p2x2_[UL_COPY] < 0) (new char)
+			then
+				p2x2_[UL_COPY] = packChar(p2x2_[UL_CHAR]) (pack it, set
+					new packed/unpacked char #)
+					
+			if (p2x2_[LL_COPY] < 0) (new char)
+			then
+				p2x2_[LL_COPY] = packChar(p2x2_[LL_CHAR]) (pack it, set
+					new packed/unpacked char #)
+					
+			if (p2x2_[UR_COPY] < 0) (new char)
+			then
+				p2x2_[UR_COPY] = packChar(p2x2_[UR_CHAR]) (pack it, set
+					new packed/unpacked char #)
+					
+			if (p2x2_[LR_COPY] < 0) (new char)
+			then
+				p2x2_[LR_COPY] = packChar(p2x2_[LR_CHAR]) (pack it, set
+					new packed/unpacked char #)
+
+	return()
+
+
+
+
+packChar(pChar_)
+
+	Append the image char to the packed or unpacked chars.
+	Note the char MUST NOT already be in the packed chars if packing allowed!
+	
+	Will return packed or unpacked char # for it
+
+
+	if (pack) (packing allowed)
+	then
+
+		pPack = pPackBeg
+
+		for (y_ = 0 ; y_ <= 7 ; y_++)
+			for (x_ = 0 ; x_ <= 7 ; x_++)
+				i_ = *pChar_++
+				if (i_ != *pPack)
+				then
+					while(*(pPack+5) (long word) >= 0)
+						pPack = *(pPack+5)
+						if (i_ == *pPack)
+						then
+							goto gotPixel
+					*(pPack+5) (long word) = pPackEnd
+					goto noMatch (below)
+				else
+
+					gotPixel::
+					
+					pPack = *(pPack+1) (long word)
+					
+			pChar_ += _100-8
+			
+		(code will not fall thru to here as packed char must not already
+			exist)
+
+		(above jump to noMatch will be inside the loop below)
+		
+
+
+		initPack() 	THIS IS THE DEFINITION OF A SUBROUTINE WITHIN THE SCOPE
+					OF THE ABOVE SUBROUTINE!!!!!!!!!!!!!!!!!!
+
+		initPack will clear the packed tree so that there is only the
+		transparent	char defined.  It will also clear the unpacked list
+		of chars.
+
+		
+		init stuff for unpacked list:
+
+		pUnpackEnd = pUnpackBeg
+		unpackNumEnd = 64K
+		
+		init stuff for packed list:
+
+		pPackEnd = pPackBeg
+		packNumEnd = 0
+		
+		pPack = pPackBeg
+		pChar_ = pChar (make transparent char here)
+		for (y_ = 0 ; y_ <= 7 ; y_++)
+			pChar_[0:7] = 0
+			pChar_ += _100	
+		pChar_ = pChar
+		
+		(code will fall thru to add transparent char to packed list)
+		(note code below will return packed char # (0) of this transparent char,
+			but you can just ignore it)
+
+
+
+		for (y_ = 0 ; y_ <= 7 ; y_++)
+			for (x_ = 0 ; x_ <= 7 ; x_++)
+				i_ = *pChar_++
+				
+				noMatch::
+				
+				pPack = pPackEnd
+				pPackEnd += PACK_SIZE
+				*pPack = i_
+				*(pPack+1) (long word) = pPackEnd
+				*(pPack+5) (long word) = -1
+				
+			pChar_ += _100-8
+
+		set packed char # at bottom node:
+
+		*(pPack+1) (long word) = packNumEnd
+		
+		return(packNumEnd++) (long word, 0:64K-1)
+	
+	(packing not allowed)
+
+	append char to other unpacked chars:
+
+	for (y_ = 0 ; y_ <= 7 ; y_++)
+		for (x_ = 0 ; x_ <= 7 ; x_++)
+			*pUnpackEnd++ = *pChar_++
+		pChar_ = _100 - 8
+
+	return(unpackNumEnd++)
+
+
+
+

@@ -1,0 +1,51 @@
+
+* * * * * * *       GSU HALT CODES       * * * * * * *
+
+		$00	INVALID
+
+RLDRAWW.A	$11	Last WallPlot has Ending Y < 0
+		$12	Current WallPlot has #Pixels = 0
+		$13	Current WallPlot has Starting Y >= RLViewPixY
+		$19	Last WallPlot has Ending Y < 0
+		$1A	Current WallPlot has #Pixels = 0
+		$1B	Current WallPlot has Starting Y >= RLViewPixY
+
+RLDRAWO.A	$21	Last ObjPlot has Ending Y < 0
+		$22	Current ObjPlot has #Pixels = 0
+		$23	Current ObjPlot has Starting Y >= RLViewPixY
+
+RLTRACEF2.A	$30	Current FloorData has UnUsed Span in Middle of Range
+
+RLDRAWF.A	$44	Current FloorPlot has Ending X >= (RLViewPixX/3)
+		$45	Current FloorPlot has Starting Y >= RLViewPixY
+
+RLTRACEW3.A	$50	Current WallPlot has Texture Height = 0
+
+RLBSP.A		$60	BSP AreaSegment List Memory Overflow
+
+RLOBJECTS2.A	$71	_RLRemSectorObject couldn't find RLObject to Remove
+RLMOBJECTS2.A	$72	_RLMAEnemyDie couldn't find RLObject to Remove
+
+RLTASKS.A	$80	_RLAddTask -- Too Many Tasks
+
+RLMISC2.A	$90	_RLMisc2 -- SoundCommand Buffer Overflow
+RLSOUND.A	$94	_RLSoundEffect -- SoundCommand Buffer Overflow
+
+RLSEGS4.A	$A1	VisibleSegment List Overflow
+
+
+
+
+* * * * * * *       65816 HALT CODES       * * * * * * *
+
+		$00	INVALID
+
+RLWEAPONS.A	$10	Build Weapon _GetCharDataMChr Invalid Stack
+
+RLIRQ.A		$20	Spurious IRQ at IRQBottom (Not HINT/GSU)
+		$21	Spurious IRQ at IRQTop (Not HINT/GSU)
+		$22	GSU caught up with SNES Frame Processing
+		$23	Debugging HALT at _RLIRQGSU2
+		$24	Debugging HALT at _RLSwapRLXVars
+
+RLOBJECTS.A	$30	Fixed/Movable Level Object OverFlow

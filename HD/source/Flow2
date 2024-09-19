@@ -1,0 +1,38 @@
+In RLSEGS4.A before clipping
+	Get AREA
+	Get AREA.SECTOR
+	Add SECTOR to VSectors ONLY if NOT ADDED ALREADY!
+Terminate VSectorList
+
+
+For each VSector
+	For each MOBJECT
+		ROTATE Object
+		If WorldY<0 or WorldY>Max, DISCARD
+		Get ScaleFactor
+		Get ScreenX
+		Get WidthOfObject
+		Get WidthOffset (Width*ScaleFactor)
+		If (ScreenX-WidthOffset)>ScreenWidth, DISCARD
+		If (ScreenX+WidthOffset)<0, DISCARD
+		Insert VOBJ in Increasing Y Distance
+		Check if WorldY >= Furthest WorldY so far
+		If so, just add to end and set new Furthest WorldY
+	End
+End
+
+
+Initialize ClipRange from X1 to X2 of VOBJ at FULL SCREEN
+For each VSEG
+	If VSEG NOT CLIPSEG! then NEXT
+	If VSEG.Y1>VOBJ.Y and VSEG.Y2>VOBJ.Y) then NEXT
+	If VSEG.X2 < VOBJ.X1 then NEXT
+	If VSEG.X1 > VOBJ.X2 then NEXT
+	If (VSEG.Y1<VOBJ.Y and VSEG.Y2<VOBJ.Y) then CLIP!
+	If Segment is BEHIND Object, NEXT!
+CLIP
+	Copy Range of X1->X2 intersecting VX1->VX2 to ClipRange
+	If ClipRange[x] is -1, decrement TotalCount
+	If TotalCount=0, This VOBJ is CLIPPED
+Next
+Add VOBJ to DrawList!

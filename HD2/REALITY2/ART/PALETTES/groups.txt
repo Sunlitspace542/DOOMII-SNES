@@ -1,0 +1,92 @@
+This is the remapped 16 color artwork. Each 16 color image is actually
+in a 256 color palette, but only uses 1 group of 16 colors.
+
+
+Group 1 "Faces.pal" : Palette for the multiple face icons
+
+   FACES256.LBM
+
+
+Group 2 "FleshMtl.pal" : Flesh & metal tones (pistol, shotgun, saw, punch)
+
+   PISGA0.LBM - Pistol Frames
+   PISGB0.LBM
+   PISGC0.LBM
+   PISGD0.LBM
+   PISGE0.LBM
+
+   SHTGA0.LBM - ShotGun Frames
+   SHTGB0.LBM
+   SHTGC0.LBM
+   SHTGD0.LBM
+
+   SAWGA0.LBM - ChainSaw Frames
+   SAWGB0.LBM
+   SAWGC0.LBM
+   SAWGD0.LBM
+
+   PUNGA0.LBM - Punching Arm Frames
+   PUNGB0.LBM
+   PUNGC0.LBM
+   PUNGD0.LBM
+
+
+Group 3 "Silver.pal" : Grey scales for Chain Gun & Missile Launcher
+
+   CHGGA0.LBM - Chain Gun Frames
+   CHGGB0.LBM
+
+   MISGA0.LBM - Missile Launcher Frames
+   MISGB0.LBM
+
+
+Group 4 "Plasma.pal" : Colors for Plasma gun (& firing)
+
+   PLSFA0.LBM - Plasma gun frames
+   PLSFB0.LBM
+   PLSGA0.LBM
+   PLSGB0.LBM
+
+
+Group 5 "BFG.pal" : Mostly whites for the Big Fucking Gun (BFG)
+
+   BFGGA0.LBM - BFG frames
+   BFGGB0.LBM
+   BFGGC0.LBM
+
+
+Group 6 "RedExplo.pal" : Intended for the miscellaneous Red Explosions
+
+   CHGFA0.LBM - Chain Gun explosions (barrel of gun gas been removed)
+   CHGFB0.LBM
+
+   MISFA0.LBM - Missile Launcher Explosions (barrel of gun removed)
+   MISFB0.LBM
+   MISFC0.LBM
+   MISFD0.LBM
+
+   PISFA0.LBM - Pistol Explosion (barrel of gun has been removed)
+
+   SHTFA0.LBM - Shotgun Explosions
+   SHTFB0.LBM
+
+
+Group 7 "Font.pal" : Shades of red for the Number Font, Red & Blue Keys
+
+   STATNUM2.LBM - Numbers (0 - 9) Font
+
+   STKEYS2.LBM - Red Key & Skull
+   STKEYS5.LBM
+
+   STKEYS0.LBM - Blue Key & Skull
+   STKEYS3.LBM
+
+
+Group 8 "GrnExplo.pal" : Green & Yellows for Green Explo & Yellow Key 
+
+   BFGFA0.LBM - BFG Explosions
+   BFGFB0.LBM
+
+   STKEYS1.LBM - Yellow Key & Skull
+   STKEYS4.LBM
+

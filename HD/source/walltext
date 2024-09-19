@@ -1,0 +1,381 @@
+MKWALL 3.6 Make WALL/IMAGE Data
+
+Processing  Wall #000  <_SKY1>
+File PathName          <RLART:WALLS/_SKY1>
+Dimensions             (128X,128Y)
+128 New, 0 Old, 0 Partial
+16384 Pixels, 16384 PixelsUsed, 100%
+
+Processing  Wall #001  <_SKY2>
+File PathName          <RLART:WALLS/_SKY2>
+Dimensions             (128X,128Y)
+128 New, 0 Old, 0 Partial
+16384 Pixels, 16384 PixelsUsed, 100%
+
+Processing  Wall #002  <BIGDOOR2>
+File PathName          <DOOMIFF:WALLS/BIGDOOR2>
+Dimensions             (128X,128Y)
+106 New, 12 Old, 10 Partial
+16384 Pixels, 9129 PixelsUsed, 55%
+
+Processing  Wall #003  <BIGDOOR7>
+File PathName          <DOOMIFF:WALLS/BIGDOOR7>
+Dimensions             (128X,128Y)
+74 New, 54 Old, 0 Partial
+16384 Pixels, 8797 PixelsUsed, 53%
+
+Processing  Wall #004  <BROWN1>
+File PathName          <DOOMIFF:WALLS/BROWN1>
+Dimensions             (128X,128Y)
+71 New, 54 Old, 3 Partial
+16384 Pixels, 6890 PixelsUsed, 42%
+
+Processing  Wall #005  <COMP2>
+File PathName          <DOOMIFF:WALLS/COMP2>
+Dimensions             (256X,64Y)
+255 New, 1 Old, 0 Partial
+16384 Pixels, 13579 PixelsUsed, 82%
+
+Processing  Wall #006  <COMPTILE>
+File PathName          <DOOMIFF:WALLS/COMPTILE>
+Dimensions             (128X,128Y)
+46 New, 82 Old, 0 Partial
+16384 Pixels, 4400 PixelsUsed, 26%
+
+Processing  Wall #007  <COMPUTE1>
+File PathName          <DOOMIFF:WALLS/COMPUTE1>
+Dimensions             (128X,128Y)
+104 New, 24 Old, 0 Partial
+16384 Pixels, 11045 PixelsUsed, 67%
+
+Processing  Wall #008  <DOOR3>
+File PathName          <DOOMIFF:WALLS/DOOR3>
+Dimensions             (64X,64Y)
+29 New, 35 Old, 0 Partial
+4096 Pixels, 1618 PixelsUsed, 39%
+
+Processing  Wall #009  <_DOORBLU>
+File PathName          <RLART:WALLS/_DOORBLU>
+Dimensions             (16X,128Y)
+7 New, 9 Old, 0 Partial
+2048 Pixels, 696 PixelsUsed, 33%
+
+Processing  Wall #010  <_DOORRED>
+File PathName          <RLART:WALLS/_DOORRED>
+Dimensions             (16X,128Y)
+4 New, 12 Old, 0 Partial
+2048 Pixels, 493 PixelsUsed, 24%
+
+Processing  Wall #011  <_DOORTRAK>
+File PathName          <RLART:WALLS/_DOORTRAK>
+Dimensions             (16X,128Y)
+5 New, 11 Old, 0 Partial
+2048 Pixels, 515 PixelsUsed, 25%
+
+Processing  Wall #012  <_DOORYEL>
+File PathName          <RLART:WALLS/_DOORYEL>
+Dimensions             (16X,128Y)
+4 New, 12 Old, 0 Partial
+2048 Pixels, 485 PixelsUsed, 23%
+
+Processing  Wall #013  <EXITDOOR>
+File PathName          <DOOMIFF:WALLS/EXITDOOR>
+Dimensions             (128X,64Y)
+65 New, 62 Old, 1 Partial
+8192 Pixels, 3372 PixelsUsed, 41%
+
+Processing  Wall #014  <EXITSIGN>
+File PathName          <DOOMIFF:WALLS/EXITSIGN>
+Dimensions             (64X,16Y)
+36 New, 27 Old, 1 Partial
+1024 Pixels, 502 PixelsUsed, 49%
+
+Processing  Wall #015  <FIREWALL>
+File PathName          <DOOMIFF:WALLS/FIREWALL>
+Dimensions             (128X,128Y)
+66 New, 62 Old, 0 Partial
+16384 Pixels, 7811 PixelsUsed, 47%
+
+Processing  Wall #016  <GRAY4>
+File PathName          <DOOMIFF:WALLS/GRAY4>
+Dimensions             (64X,128Y)
+35 New, 29 Old, 0 Partial
+8192 Pixels, 3141 PixelsUsed, 38%
+
+Processing  Wall #017  <GRAYBIG>
+File PathName          <DOOMIFF:WALLS/GRAYBIG>
+Dimensions             (128X,128Y)
+53 New, 75 Old, 0 Partial
+16384 Pixels, 4398 PixelsUsed, 26%
+
+Processing  Wall #018  <GSTONE1>
+File PathName          <DOOMIFF:WALLS/GSTONE1>
+Dimensions             (64X,128Y)
+64 New, 0 Old, 0 Partial
+8192 Pixels, 7531 PixelsUsed, 91%
+
+Processing  Wall #019  <GSTSATYR>
+File PathName          <DOOMIFF:WALLS/GSTSATYR>
+Dimensions             (64X,128Y)
+57 New, 7 Old, 0 Partial
+8192 Pixels, 6724 PixelsUsed, 82%
+
+Processing  Wall #020  <GSTVINE2>
+File PathName          <DOOMIFF:WALLS/GSTVINE2>
+Dimensions             (128X,128Y)
+128 New, 0 Old, 0 Partial
+16384 Pixels, 15644 PixelsUsed, 95%
+
+Processing  Wall #021  <ICKWALL1>
+File PathName          <DOOMIFF:WALLS/ICKWALL1>
+Dimensions             (64X,128Y)
+48 New, 16 Old, 0 Partial
+8192 Pixels, 4111 PixelsUsed, 50%
+
+Processing  Wall #022  <LITE5>
+File PathName          <DOOMIFF:WALLS/LITE5>
+Dimensions             (16X,128Y)
+7 New, 9 Old, 0 Partial
+2048 Pixels, 825 PixelsUsed, 40%
+
+Processing  Wall #023  <MARBFAC3>
+File PathName          <DOOMIFF:WALLS/MARBFAC3>
+Dimensions             (128X,128Y)
+65 New, 63 Old, 0 Partial
+16384 Pixels, 7693 PixelsUsed, 46%
+
+Processing  Wall #024  <MARBLE3>
+File PathName          <DOOMIFF:WALLS/MARBLE3>
+Dimensions             (128X,128Y)
+64 New, 64 Old, 0 Partial
+16384 Pixels, 7825 PixelsUsed, 47%
+
+Processing  Wall #025  <METAL1>
+File PathName          <DOOMIFF:WALLS/METAL1>
+Dimensions             (64X,128Y)
+47 New, 17 Old, 0 Partial
+8192 Pixels, 5458 PixelsUsed, 66%
+
+Processing  Wall #026  <PIPE4>
+File PathName          <DOOMIFF:WALLS/PIPE4>
+Dimensions             (256X,128Y)
+115 New, 141 Old, 0 Partial
+32768 Pixels, 11463 PixelsUsed, 34%
+
+Processing  Wall #027  <ROCKRED3>
+File PathName          <DOOMIFF:WALLS/ROCKRED3>
+Dimensions             (64X,128Y)
+62 New, 0 Old, 2 Partial
+8192 Pixels, 6571 PixelsUsed, 80%
+
+Processing  Wall #028  <SKINLOW>
+File PathName          <DOOMIFF:WALLS/SKINLOW>
+Dimensions             (64X,128Y)
+64 New, 0 Old, 0 Partial
+8192 Pixels, 8082 PixelsUsed, 98%
+
+Processing  Wall #029  <SKULWAL3>
+File PathName          <DOOMIFF:WALLS/SKULWAL3>
+Dimensions             (128X,128Y)
+116 New, 12 Old, 0 Partial
+16384 Pixels, 14275 PixelsUsed, 87%
+
+Processing  Wall #030  <SLADWALL>
+File PathName          <DOOMIFF:WALLS/SLADWALL>
+Dimensions             (64X,128Y)
+32 New, 32 Old, 0 Partial
+8192 Pixels, 2876 PixelsUsed, 35%
+
+Processing  Wall #031  <STARG2>
+File PathName          <DOOMIFF:WALLS/STARG2>
+Dimensions             (128X,128Y)
+80 New, 48 Old, 0 Partial
+16384 Pixels, 7609 PixelsUsed, 46%
+
+Processing  Wall #032  <STARTAN2>
+File PathName          <DOOMIFF:WALLS/STARTAN2>
+Dimensions             (128X,128Y)
+76 New, 52 Old, 0 Partial
+16384 Pixels, 7024 PixelsUsed, 42%
+
+Processing  Wall #033  <STARTAN3>
+File PathName          <DOOMIFF:WALLS/STARTAN3>
+Dimensions             (128X,128Y)
+64 New, 64 Old, 0 Partial
+16384 Pixels, 5675 PixelsUsed, 34%
+
+Processing  Wall #034  <STEP2>
+File PathName          <DOOMIFF:WALLS/STEP2>
+Dimensions             (32X,64Y)
+8 New, 24 Old, 0 Partial
+2048 Pixels, 519 PixelsUsed, 25%
+
+Processing  Wall #035  <STEPLAD1>
+File PathName          <DOOMIFF:WALLS/STEPLAD1>
+Dimensions             (64X,16Y)
+33 New, 31 Old, 0 Partial
+1024 Pixels, 501 PixelsUsed, 48%
+
+Processing  Wall #036  <STONE2>
+File PathName          <DOOMIFF:WALLS/STONE2>
+Dimensions             (128X,128Y)
+96 New, 29 Old, 3 Partial
+16384 Pixels, 7926 PixelsUsed, 48%
+
+Processing  Wall #037  <SUPPORT2>
+File PathName          <DOOMIFF:WALLS/SUPPORT2>
+Dimensions             (64X,128Y)
+14 New, 50 Old, 0 Partial
+8192 Pixels, 1607 PixelsUsed, 19%
+
+Processing  Wall #038  <SW1BRN2>
+File PathName          <DOOMIFF:WALLS/SW1BRN2>
+Dimensions             (64X,128Y)
+27 New, 35 Old, 2 Partial
+8192 Pixels, 2948 PixelsUsed, 35%
+
+Processing  Wall #039  <SW1BRNGN>
+File PathName          <DOOMIFF:WALLS/SW1BRNGN>
+Dimensions             (64X,128Y)
+48 New, 16 Old, 0 Partial
+8192 Pixels, 3909 PixelsUsed, 47%
+
+Processing  Wall #040  <SW1EXIT>
+File PathName          <DOOMIFF:WALLS/SW1EXIT>
+Dimensions             (32X,64Y)
+16 New, 15 Old, 1 Partial
+2048 Pixels, 924 PixelsUsed, 45%
+
+Processing  Wall #041  <SW1GARG>
+File PathName          <DOOMIFF:WALLS/SW1GARG>
+Dimensions             (64X,128Y)
+31 New, 31 Old, 2 Partial
+8192 Pixels, 4080 PixelsUsed, 49%
+
+Processing  Wall #042  <SW1GRAY>
+File PathName          <DOOMIFF:WALLS/SW1GRAY>
+Dimensions             (64X,128Y)
+32 New, 31 Old, 1 Partial
+8192 Pixels, 3018 PixelsUsed, 36%
+
+Processing  Wall #043  <SW1GSTON>
+File PathName          <DOOMIFF:WALLS/SW1GSTON>
+Dimensions             (64X,128Y)
+47 New, 17 Old, 0 Partial
+8192 Pixels, 5631 PixelsUsed, 68%
+
+Processing  Wall #044  <SW1HOT>
+File PathName          <DOOMIFF:WALLS/SW1HOT>
+Dimensions             (64X,128Y)
+53 New, 11 Old, 0 Partial
+8192 Pixels, 5555 PixelsUsed, 67%
+
+Processing  Wall #045  <SW1PIPE>
+File PathName          <DOOMIFF:WALLS/SW1PIPE>
+Dimensions             (128X,128Y)
+58 New, 70 Old, 0 Partial
+16384 Pixels, 5620 PixelsUsed, 34%
+
+Processing  Wall #046  <SW1SLAD>
+File PathName          <DOOMIFF:WALLS/SW1SLAD>
+Dimensions             (64X,128Y)
+10 New, 54 Old, 0 Partial
+8192 Pixels, 954 PixelsUsed, 11%
+
+Processing  Wall #047  <SW1WOOD>
+File PathName          <DOOMIFF:WALLS/SW1WOOD>
+Dimensions             (64X,128Y)
+59 New, 5 Old, 0 Partial
+8192 Pixels, 7056 PixelsUsed, 86%
+
+Processing  Wall #048  <SW2BRN2>
+File PathName          <DOOMIFF:WALLS/SW2BRN2>
+Dimensions             (64X,128Y)
+12 New, 52 Old, 0 Partial
+8192 Pixels, 1143 PixelsUsed, 13%
+
+Processing  Wall #049  <SW2BRNGN>
+File PathName          <DOOMIFF:WALLS/SW2BRNGN>
+Dimensions             (64X,128Y)
+8 New, 56 Old, 0 Partial
+8192 Pixels, 769 PixelsUsed, 9%
+
+Processing  Wall #050  <SW2EXIT>
+File PathName          <DOOMIFF:WALLS/SW2EXIT>
+Dimensions             (32X,64Y)
+15 New, 16 Old, 1 Partial
+2048 Pixels, 892 PixelsUsed, 43%
+
+Processing  Wall #051  <SW2GARG>
+File PathName          <DOOMIFF:WALLS/SW2GARG>
+Dimensions             (64X,128Y)
+10 New, 53 Old, 1 Partial
+8192 Pixels, 1353 PixelsUsed, 16%
+
+Processing  Wall #052  <SW2GRAY>
+File PathName          <DOOMIFF:WALLS/SW2GRAY>
+Dimensions             (64X,128Y)
+18 New, 45 Old, 1 Partial
+8192 Pixels, 1719 PixelsUsed, 20%
+
+Processing  Wall #053  <SW2GSTON>
+File PathName          <DOOMIFF:WALLS/SW2GSTON>
+Dimensions             (64X,128Y)
+17 New, 47 Old, 0 Partial
+8192 Pixels, 1976 PixelsUsed, 24%
+
+Processing  Wall #054  <SW2HOT>
+File PathName          <DOOMIFF:WALLS/SW2HOT>
+Dimensions             (64X,128Y)
+13 New, 51 Old, 0 Partial
+8192 Pixels, 1443 PixelsUsed, 17%
+
+Processing  Wall #055  <SW2PIPE>
+File PathName          <DOOMIFF:WALLS/SW2PIPE>
+Dimensions             (128X,128Y)
+33 New, 95 Old, 0 Partial
+16384 Pixels, 3059 PixelsUsed, 18%
+
+Processing  Wall #056  <SW2SLAD>
+File PathName          <DOOMIFF:WALLS/SW2SLAD>
+Dimensions             (64X,128Y)
+7 New, 57 Old, 0 Partial
+8192 Pixels, 676 PixelsUsed, 8%
+
+Processing  Wall #057  <SW2WOOD>
+File PathName          <DOOMIFF:WALLS/SW2WOOD>
+Dimensions             (64X,128Y)
+15 New, 49 Old, 0 Partial
+8192 Pixels, 1786 PixelsUsed, 21%
+
+Processing  Wall #058  <TEKWALL5>
+File PathName          <DOOMIFF:WALLS/TEKWALL5>
+Dimensions             (128X,128Y)
+57 New, 70 Old, 1 Partial
+16384 Pixels, 6255 PixelsUsed, 38%
+
+Processing  Wall #059  <WOOD3>
+File PathName          <DOOMIFF:WALLS/WOOD3>
+Dimensions             (128X,128Y)
+64 New, 64 Old, 0 Partial
+16384 Pixels, 7995 PixelsUsed, 48%
+
+Processing  Wall #060  <WOOD4>
+File PathName          <DOOMIFF:WALLS/WOOD4>
+Dimensions             (64X,128Y)
+12 New, 52 Old, 0 Partial
+8192 Pixels, 1508 PixelsUsed, 18%
+
+Processing  Wall #061  <WOOD5>
+File PathName          <DOOMIFF:WALLS/WOOD5>
+Dimensions             (128X,128Y)
+64 New, 64 Old, 0 Partial
+16384 Pixels, 7698 PixelsUsed, 46%
+
+Processing  Wall #062  <WOODSKUL>
+File PathName          <DOOMIFF:WALLS/WOODSKUL>
+Dimensions             (64X,128Y)
+35 New, 28 Old, 1 Partial
+8192 Pixels, 4385 PixelsUsed, 53%
+
+TOTALS: 661504 Pixels, 321930 Pixels Used, 48%

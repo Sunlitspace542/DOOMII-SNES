@@ -1,0 +1,34 @@
+Patch#	PatchName	SampleRate	Note	Range	#Waves
+--------------------------------------------------------------
+2	synpiano					  5
+12	marimba		39062		G4	A0-C8	  1
+24	nyguitar					  7
+29	odguitar					  4
+39	synbass2	22321		C3	A0-C8	  1
+40	violin						  6
+47	timpani		22321		F3	A0-C8	  1
+51	synstr2		44642		D#5	A0-C8	  1
+52	choir						  2
+56	trumpet						  2
+66	tenorsax					  3
+68	oboe						 14
+73	flute		41666		G#5	A0-C8	  1
+114	steeldrm	44642		C5	G#0-C8	  1
+115	woodblk		44642		F#4	A0-C8	  1
+--------------------------------------------------------------
+128	blank		44100		F0	C0-A#0	  1
+159	sticks		22321		G1	G1-G1	  1
+163	kick1		32894		B1	B1-B1	  1
+164	kick2		22321		C2	C2-C2	  1
+165	stickrim	22321		C#2	C#2-C#2	  1
+166	snare1		22321		D2	D2-D2	  1
+167	claps		22321		D#2	D#2-D#2	  1
+168	snare2		22321		E2	E2-E2	  1
+170	hihatcl		36764		F#2	F#2-F#2	  1
+171	tomlo1		10964		E2	G2-G2	  1
+172	hihatpd		22321		G#2	G#2-G#2	  1
+174	hihatop		36764		A#2	A#2-A#2	  1
+175	tommid1		10964		C#2	B2-B2	  1
+178	tomhi1		10964		B1	D3-D3	  1
+181	cymbell		22321		F3	F3-F3	  1
+182	tamborin	36764		F#3	F#3-F#3	  1

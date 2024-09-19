@@ -1,0 +1,87 @@
+type = "Doom Builder Map Settings Configuration";
+gameconfig = "Doom_DoomDoom.cfg";
+strictpatches = 0;
+
+maps
+{
+	
+	MAP02
+	{
+		defaultwalltexture = "SHAWN2";
+		overridemiddletexture = false;
+		defaultceiltexture = "FLAT5_4";
+		overrideceiltexture = false;
+		custombrightness = 196;
+		
+		resources
+		{
+			
+			resource0
+			{
+				type = 0;
+				location = "G:\\GAMES 2\\gzdoom\\doom.wad";
+				option1 = 0;
+				option2 = 0;
+				notfortesting = 0;
+				requiredarchives = "";
+			}
+		}
+		viewpositiony = 1619.692f;
+		viewpositionx = 1045.129f;
+		
+		testprecommand
+		{
+			autocloseonsuccess = true;
+			exitcodeiserror = true;
+			stderriserror = true;
+		}
+		customceilheight = 128;
+		customfloorheight = 0;
+		
+		grid
+		{
+			backoffsetx = 0;
+			backsource = 0;
+			gridoriginy = 0;
+			backscaley = 100;
+			gridrotate = 0;
+			backscalex = 100;
+			gridoriginx = 0;
+			gridsize = 32;
+			background = "";
+			backoffsety = 0;
+		}
+		viewscale = 0.8897148f;
+		
+		reloadresourceprecommand
+		{
+			autocloseonsuccess = true;
+			exitcodeiserror = true;
+			stderriserror = true;
+		}
+		defaulttoptexture = "SHAWN2";
+		overridebottomtexture = false;
+		defaultbottomtexture = "SHAWN2";
+		defaultfloortexture = "FLAT5_5";
+		overrideceilheight = false;
+		overridebrightness = false;
+		
+		testpostcommand
+		{
+			autocloseonsuccess = true;
+			exitcodeiserror = true;
+			stderriserror = true;
+		}
+		overridefloorheight = false;
+		overridetoptexture = false;
+		uselongtexturenames = false;
+		overridefloortexture = false;
+		
+		reloadresourcepostcommand
+		{
+			autocloseonsuccess = true;
+			exitcodeiserror = true;
+			stderriserror = true;
+		}
+	}
+}

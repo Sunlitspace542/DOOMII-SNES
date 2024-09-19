@@ -1,0 +1,86 @@
+;
+;	* * * * * * *       DISTANCE FROM RLOBJECT TO TARGET RLOBJECT       * * * * * * *
+;
+;	ROBJ	= Source RLObject
+;	RTOBJ	= Target RLObject
+;	R0	= Angle (Obj->TObj)
+;	RDELTAX	= (TObjX-ObjX)
+;	RDELTAY	= (TObjY-ObjY)
+;
+;	R? = DISTANCE
+;
+_RLGetObjTObjDistance
+	moves	r0,r0				; Angle
+	bpl	_RLDOT2200			; Octant 4/5/6/7?
+	nop
+;	with	r0				; Convert to Octant 0/1/2/3
+	not
+	inc	r0
+_RLDOT2200
+	move	r1,#$4000			; r1 = 90 degrees
+;	from	r0				; Octant 2/3?
+	cmp	r1
+	from	r1				; r2 = 45 degrees
+	to	r2
+	blt	_RLDOT2400
+	lsr
+	move	r4,#$8000			; Convert to Octant 0/1
+	from	r4
+;	to	r0
+	sub	r0
+_RLDOT2400
+;	from	r0				; Octant 0 or 1?
+	cmp	r2
+	move	r6,#(rloX+2)			; DeltaX (TObjX-ObjX)
+	blt	_RLDOT2600
+	with	rDeltaX				; Octant 0 (0/3/4/7)
+	nop
+	from	r1				; Octant 1 (1/2/5/6)
+;	to	r0				; (Convert to Octant 0)
+	sub	r0
+	move	r6,#(rloY+2)			; DeltaY (TObjY-ObjY)
+	with	rDeltaY
+_RLDOT2600
+;	from	r0				; VertexAngle
+	lsr
+	lsr
+	lsr
+	lsr
+	lsr					; >>5
+	lsr					; Remove lowest bit
+;	from	r0
+	to	r1
+	add	r0
+	iwt	r0,#<SecTable
+;	from	r0
+	to	r14
+	add	r1
+;
+	from	rObj				; Get Obj Coordinate X/Y
+;	to	r0
+	add	r6
+;	to	r0
+	ldw	(r0)
+	with	r6				; Get TObj Coordinate X/Y
+	add	rTObj
+	to	r6
+	ldw	(r6)
+	with	r6				; Get Delta
+	sub	r0
+;
+	with	r6				; Get |Delta|
+	add	r6
+	bpl	_RLDOT2800
+	nop
+	with	r6
+	not
+	inc	r6
+_RLDOT2800
+	getb
+	inc	r14
+	getbh
+;	with	r0				; Get Fraction portion of Secant
+	fmult
+	jmp	r11				; Return to Caller
+;	with	r0				; VERTEX DISTANCE = 1.0 + SEC(VertexAngle)
+	add	r6

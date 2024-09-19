@@ -1,0 +1,6 @@
+.key rlend
+.bra {
+.ket }
+FailAt 21
+sort rl.sec t:q{$$} colstart 34
+Type t:q{$$}

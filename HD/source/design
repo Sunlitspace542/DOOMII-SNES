@@ -1,0 +1,155 @@
+
+;**********************************************************************
+;*                                                                    *
+;*                   P R O J E C T :   REALITY_ENGINE                 *
+;*                                                                    *
+;*             T E C H N I C A L   D E S I G N   R E V I E W          *
+;*                                                                    *
+;*                     Revision 0.01   March 19, 1994                 *
+;*                                                                    *
+;**********************************************************************
+
+
+
+                                 OVERVIEW
+                                 --------
+
+Real-Time Three-Dimensional Graphics World Engine
+
+Runs at 20fps (3 VBlanks) per update
+
+"Do not go gentle into that good night; Rage, Rage against the dying of the light."
+
+
+
+
+
+
+
+
+                     VIEW ENGINE "THEORY OF OPERATION"
+                     ---------------------------------
+
+
+Build Intersection List (0 entry is current floor sector, 0 entry is first line intersection)
+
+{
+	After Last Intersection (No Second Sector <or> Wall marked as BackWall)
+	Floor(LastLine+1) = Ceiling(LastLine)
+	Ceiling(LastLine+1) = Floor(LastLine)
+}
+
+FloorSector = PlayerSector
+FloorLine = 0
+
+Push ReturnAddress(CEILING) onto SurfaceStack
+
+
+{FIRST FLOOR}
+
+RayLength = (PlayerHeight * Cos(RayAngle))		; Get first distance into lines <<TABLED>>
+RayFloor = Floor(0)
+
+if RayLength < Line(0) then {FLOOR}			; Do we hit a floor before any walls?
+{
+	NumWorldPixels = (Line(0) - RayLength)		; Yes, draw floor up to the first wall
+	DrawFloor
+	RayLength = Line(0)
+	RayAngle = ArcTan(RayLength / RayFloor)
+	goto NEXTFLOOR
+}
+else {SKIP}
+{
+	RayLength = Line(0)
+	RayFloor = RayLength * Cot(RayAngle)
+	if FloorLine > CeilingLine then gosub SWAPSURFACE	; No, Hit floor exactly or missed it
+	FloorLine++
+}
+
+
+{FLOORLOOP}
+
+if Floor(FloorLine) > RayFloor then {WALL}
+{
+	if FloorLine > CeilingLine then gosub SWAPSURFACE
+
+	NumWorldPixels = (Floor(FloorLine) - RayFloor)		; Draw wall up to the next floor
+	DrawWall
+	{
+	if doing Floor {
+		Texture = (BelowTexture ? BelowTexture : WallTexture)
+		}
+	else doing Ceiling {
+		AboveTexture = (AboveSky ? AboveSky : AboveTexture)
+		Texture = (AboveTexture ? AboveTexture : WallTexture)
+		}
+	}
+	RayFloor = Floor(FloorLine)				; New height of current ray endpoint
+	RayAngle = ArcTan(RayLength / RayFloor)
+}
+
+if Floor(FloorLine) = RayFloor then {FLOOR}
+{
+	if FloorLine > CeilingLine then gosub SWAPSURFACE
+
+	if Floor(FloorLine) <= (Floor(0)+PlayerHeight)			; Floor within line of sight?
+	{
+		NumWorldPixels = (Line(FloorLine) - RayLength)		; Yes
+		DrawFloor
+		RayLength = Line(FloorLine)
+		RayAngle = ArcTan(RayLength / RayFloor)
+		goto NEXTFLOOR
+	}
+
+	if RayFloor >= Ceiling(FloorLine) then goto DONEFLOOR		; Hit ceiling?  Yes, no more floor!
+}
+
+else Floor(FloorLine) < RayFloor then {CEILING or FLOOR or SKIP}
+{
+	if FloorLine > CeilingLine then gosub SWAPSURFACE
+
+	RayFloor += (Line(FloorLine) - RayLength) * Cot(RayAngle)	; Scan ray forwards
+
+	if RayFloor >= Ceiling(FloorLine) then goto DONEFLOOR		; Hit ceiling?  Yes, no more floor!
+
+	if (RayFloor < Floor(FloorLine)) then {FLOOR}
+	{
+		RayLength = (Floor(FloorLine) * Tan(RayAngle))		; We hit the floor in the middle
+		NumWorldPixels = (Line(FloorLine) - RayLength)		; Draw floor up to the next wall
+		DrawFloor
+		RayLength = Line(FloorLine)
+		RayFloor = Floor(FloorLine)
+		RayAngle = ArcTan(RayLength / RayFloor)
+	}
+}
+
+{NEXTFLOOR}
+	if FloorLine > CeilingLine then gosub SWAPSURFACE
+	FloorLine++
+	goto FLOORLOOP
+
+{DONEFLOOR}
+	gosub SWAPSURFACE						; Only draw ceiling pieces
+	goto DONEFLOOR
+
+{SWAPSURFACE}
+	swap ReturnAddress(Next) and ReturnAddress(Current) on SurfaceStack	; Swap Floor/Ceiling
+	return
+
+
+
+
+
+
+                             65816 DISCUSSION
+                             ----------------
+
+
+
+                              GSU DISCUSSION
+                              --------------
+
+
+
+                     GSU/65816 INTERACTION DISCUSSION
+                     --------------------------------

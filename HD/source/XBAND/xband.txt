@@ -1,0 +1,7 @@
+send XMail to "patch", subject anything, body text "gp01" for Server to automatically
+set GameId to 00000001.  Connect to XBand and server will comply.
+
+send XMail to "patch", subject anything, body text "gp00" to return to normal.
+
+gp00          Return to normal operations
+gp01 to gp04  Test Game Patch #1-#4

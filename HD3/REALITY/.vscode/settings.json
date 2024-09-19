@@ -1,0 +1,7 @@
+{
+	"files.associations": {
+		"smakefile": "makefile"
+		"*.i": "assembly"
+		"*.a": "assembly"
+	}
+}

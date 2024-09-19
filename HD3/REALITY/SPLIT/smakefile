@@ -1,0 +1,25 @@
+#
+#	Makefile for SPLIT		--	PROJECT: FILE SPLITTER
+#
+#
+#
+
+#
+#	RULES
+#
+.c.o:
+
+#for final version:
+	sc $*.c CommentNest Cpu=68040 Data=Far Code=Far Verbose Parms=Register \
+           Optimize OptTime NoStkChk
+
+#
+#	List of itty-bitty pieces to form HUGE program
+#
+SPLIT = \
+split.o
+
+
+SPLIT: $(SPLIT)
+	slink LIB:c.o $(SPLIT) \
+	LIB LIB:sc.lib LIB LIB:amiga.lib \

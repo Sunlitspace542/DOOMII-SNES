@@ -1,0 +1,423 @@
+BSP	From BSP Tree, Generate List of Segments (SegList)
+
+
+SEGS	Initialize Segment Engine
+
+
+SEGS2	For each Seg
+	{
+		Rotate Segments' Vertexes
+	}
+
+
+SEGS3	For each Seg
+	{
+		Calculate Seg.StartX, Seg.StopX
+		if Segment NOT in DisplayRange
+		{
+			RemoveSeg()
+		}
+	}
+
+
+SEGS4	For each Seg
+	{
+		if Segment is NOT Excluded from ClipZones
+		{
+			AddVSeg()
+			Set AutoMap "Mapped" Flag
+			if (VSeg.SegFlags & SOLID)
+			{
+				AddClipZone()
+			}
+		}
+	}
+
+
+VSEGS	For each VSeg
+	{
+		Calculate VSeg.YInv
+		Calculate VSeg.YInvStep
+		Calculate VSeg.FaceOffset
+		Calculate VSeg.ColumnStep
+		Get VSeg.SectorNear
+		Get VSeg.SectorNearData
+		Get VSeg.SectorFar
+	}
+
+
+VSEGS2	For each VSeg
+	{
+;
+;	* * * * * * *       NEXT VISIBLE SEGMENT       * * * * * * *
+;
+		Use VSeg.SectorNear
+		VSeg.CeilingHeightNear = SectorNear.CeilingHeight
+		VSeg.CeilingTexture = SectorNear.CeilingTexture
+		VSeg.FloorHeightNear = SectorNear.FloorHeight
+		VSeg.FloorTexture = SectorNear.FloorTexture
+		VSeg.LightLevel = SectorNear.LightLevel
+;
+		Use VSeg.SectorFar
+		VSeg.CeilingHeightFar = SectorFar.CeilingHeight
+		VSeg.FloorHeightFar = SectorFar.FloorHeight
+		SectorFar.LightLevel = -1
+;
+		SegFlags = VSeg.SegFlags
+		
+;
+;	* * * * * * *       SOLID WALL       * * * * * * *
+;
+SOLIDWALL:
+		if (SegFlags & SOLID)
+		{
+			SET (VSC_WALL | VSC_NORMALWALL | VSC_SOLIDCLIP)
+			GOTO NEXTVSEG
+		}
+
+;
+;	* * * * * * *       TRANSPARENT WALL       * * * * * * *
+;
+
+;
+;	>>>   MIDDLE WALL   <<<
+;
+		if (SegFlags & MIDDLENOTCLEAR)
+		{
+			SET (VSC_WALL | VSC_MIDDLEWALL)
+		}
+		else
+		{
+;
+;	>>>   CLOSED DOOR   <<<
+;
+			if (CeilingHeightFar <= FloorHeightNear)
+			{
+				GOTO SOLIDWALL
+			}
+		}
+
+;
+;	>>>   LOWER FAR SECTOR CEILING   <<<
+;
+		if (CeilingHeightNear >= CeilingHeightFar)
+		{
+			if (CeilingHeightNear == CeilingHeightFar)
+			{
+				GOTO TRYADDCEILING
+			}
+			else
+			{
+				ADD (VSC_WALL | VSC_UPPERWALL | VSC_UPPERCLIP)
+				GOTO NEXTVSEG
+			}
+		}
+;
+;	>>>   HIGHER FAR SECTOR CEILING   <<<
+;
+		else
+		{
+			ADD (VSC_UPPERCLIP)
+		}
+;
+;	>>>   CEILING TEXTURE/LIGHTING CHANGE   <<<
+;
+TRYADDCEILING:
+		if (CeilingHeightNear) > 0	(Ceiling Visible)
+		{
+			Get SectorFar.CeilingTexture
+			Get SectorFar.LightLevel
+			if (VSeg.CeilingTexture != SectorFar.CeilingTexture)
+			|| (VSeg.LightLevel != SectorFar.LightLevel)
+			{
+				ADD (VSC_ADDCEILING)
+			}
+		}
+
+;
+;	>>>   HIGHER FAR SECTOR FLOOR   <<<
+;
+		if (FloorHeightFar >= FloorHeightNear)
+		{
+			if (FloorHeightFar == FloorHeightNear)
+			{
+				GOTO TRYADDFLOOR
+			}
+			else
+			{
+				ADD (VSC_WALL | VSC_LOWERWALL | VSC_LOWERCLIP)
+				GOTO NEXTVSEG
+			}
+		}
+;
+;	>>>   LOWER FAR SECTOR FLOOR   <<<
+;
+		else
+		{
+			ADD (VSC_LOWERCLIP)
+		}
+;
+;	>>>   FLOOR TEXTURE/LIGHTING CHANGE   <<<
+;
+TRYADDFLOOR:
+		if (FloorHeightNear) < 0		(Floor Visible)
+		{
+			Get SectorFar.FloorTexture
+			if (SectorFar.LightLevel == -1)
+			{
+				Get SectorFar.LightLevel
+			}
+			if (VSeg.FloorTexture != SectorFar.FloorTexture)
+			|| (VSeg.LightLevel != SectorFar.LightLevel)
+			{
+				ADD (VSC_ADDFLOOR)
+			}
+		}
+NEXTVSEG:
+	}
+
+
+VSEGS2	For each VSeg
+	{
+		CommandFlags = VSeg.CommandFlags
+
+		if (CommandFlags & (VSC_ADDCEILING || VSC_NORMALWALL || VSC_UPPERWALL))
+		{
+			Calculate VSeg.CeilingHeight
+		}
+		if (CommandFlags & (VSC_ADDFLOOR || VSC_NORMALWALL || VSC_LOWERWALL))
+		{
+			Calculate VSeg.FloorHeight
+		}
+
+		if (CommandFlags & VSC_NORMALWALL)
+		{
+			VSeg.NormalWallTopHeight = VSeg.CeilingHeight
+			VSeg.NormalWallBottomHeight = VSeg.FloorHeight
+		}
+		else
+		{
+			if (CommandFlags & VSC_MIDDLEWALL)
+			{
+				VSeg.UpperWallBottomHeight = VSeg.CeilingHeight
+				VSeg.LowerWallTopHeight = VSeg.FloorHeight
+			}
+			if (CommandFlags & VSC_UPPERWALL)
+				VSeg.UpperWallTopHeight = VSeg.CeilingHeight
+				Calculate VSeg.UpperWallBottomHeight
+			}
+			if (CommandFlags & VSC_LOWERWALL)
+				Calculate VSeg.LowerWallTopHeight
+				VSeg.LowerWallBottomHeight = VSeg.FloorHeight
+			}
+			if (CommandFlags & VSC_MIDDLEWALL)
+				VSeg.MiddleWallTopHeight = VSeg.UpperWallBottomHeight
+				VSeg.MiddleWallBottomHeight = VSeg.LowerWallTopHeight
+			}
+		}
+	}
+
+
+VSEGS3	For each VSeg
+	{
+		CommandFlags = VSeg.CommandFlags
+		if (CommandFlags & VSC_NORMALWALL)
+		{
+			Get VSeg.NormalTexture	(Pointer to TextureDataArray)
+			Get VSeg.NormalColumnMask
+			Get VSeg.NormalRowHeight
+		}
+		else if (CommandFlags & VSC_WALL)
+		{
+			if (CommandFlags & VSC_UPPERWALL)
+				Get VSeg.UpperTexture
+				Get VSeg.UpperColumnMask
+				Get VSeg.UpperRowHeight
+			}
+			if (CommandFlags & VSC_LOWERWALL)
+				Get VSeg.LowerTexture
+				Get VSeg.LowerColumnMask
+				Get VSeg.LowerRowHeight
+			}
+			if (CommandFlags & VSC_MIDDLEWALL)
+				Get VSeg.MiddleTexture
+				Get VSeg.MiddleColumnMask
+				Get VSeg.MiddleRowHeight
+			}
+		}
+	}
+
+
+TRACE	Initialize ClipRange to ( ((RLViewPixY-1)<<8) | -1 )	(Bottom.B / Top.B)
+
+TRACE	Create UsedFloor with $FFFE (To Force NEWFLOOR)
+
+
+TRACE2	For each VSeg
+	{
+		Floor = UsedFloor
+		Ceiling = UsedFloor
+		SectorNear = VSeg.SectorNear
+		CommandFlags = VSeg.CommandFlags
+
+		Get VSeg.Scale
+		Get VSeg.ScaleStep
+		Get VSeg.Column
+		Get VSeg.ColumnStep
+
+		For (x = VSeg.StartX to VSeg.StopX) {
+		Get ClipRange[x]
+		if (ClipRange[x] != $FFFF) {
+			ClipBottom = hib(ClipRange[x])
+			ClipTop = lob(ClipRange[x])
+			Get PixRatio (Use VSeg.Scale as INDEX into PixRatio Table!)
+			if (CommandFlags & VSC_WALL)
+			{
+			Get PixInvRatio (Use VSeg.Scale as INDEX into PixInvRatio Table!)
+			Get PixDrawSkip (Use VSeg.Scale as INDEX into PixScale Table!)
+				if (CommandFlags & VSC_NORMALWALL)
+				{
+					AddWall(Normal)
+					AddCeiling(ClipTop,TopOfWall)
+					AddFloor(BottomOfWall,ClipBottom)
+					ClipRange[x] = $FFFF
+				}
+				else
+				{
+					if (CommandFlags & VSC_UPPERWALL)
+					{
+						AddWall(Upper)
+						AddCeiling(ClipTop,TopOfWall)
+						ClipTop = (First Y Position)
+					}
+					if (CommandFlags & VSC_LOWERWALL)
+					{
+						AddWall(Lower)
+						AddFloor(BottomOfWall,ClipBottom)
+						ClipBottom = (Last Y Position)
+					}
+					if (CommandFlags & VSC_MIDDLEWALL)
+					{
+						AddDeferWall(Middle)
+					}
+					ClipRange[x] = ((ClipBottom<<8)|(ClipTop))
+				}
+				VSeg.Column += VSeg.ColumnStep
+				GOTO NEXTX
+			}
+			else
+			{
+				if (CommandFlags & VSC_ADDCEILING)
+				{
+					CeilingScreenY = (RLPixY/2)+(VSeg.CeilingHeight*PixRatio)
+					if CeilingScreenY > ClipTop
+					{
+						if CeilingScreenY > ClipBottom
+						{
+							CeilingScreenY = ClipBottom
+						}
+						AddCeiling(ClipTop,CeilingScreenY)
+					}
+				}
+				if (CommandFlags & VSC_ADDFLOOR)
+				{
+					FloorScreenY = (RLPixY/2)+(VSeg.FloorHeight*PixRatio)
+					if FloorScreenY <= ClipBottom
+					{
+						if FloorScreenY < ClipTop
+						{
+							FloorScreenY = ClipTop+1
+						}
+						AddFloor(FloorScreenY,ClipBottom)
+					}
+				}
+			}
+		NEXTX:
+			VSeg.Scale += VSeg.ScaleStep
+		}
+	}
+
+
+;
+;	* * * * * * *       ADD WALL       * * * * * * *
+;
+;	Adds WallStrip from (Top+1 to Bottom inclusive)
+;
+AddWall(WallOffset)
+{
+	ScreenY = ((RLViewPixY-1)/2)-(WallBottom*PixRatio)
+	if (ScreenY < ClipTop) then EXIT
+	NumWorldPixels = (WallTop-WallBottom)
+	NumClippedPixels = (ScreenY - ClipBottom)
+	if (NumClippedPixels) > 0
+	{
+		NumClippedWorldPixels = (NumClippedPixels*PixInvRatio)
+		NumWorldPixels -= NumClippedWorldPixels
+		if 0, make 1?
+	}
+	Column = VSeg.Column
+	while (NumClippedWorldPixels >= VSeg.WallRowHeight)
+	{
+		NumClippedWorldPixels -= VSeg.WallRowHeight
+		Column++
+	}
+	TextureStripAddress = (VSeg.WallTexture + ((Column&VSeg.ColumnMask)*3))
+	TextureStripAddress += NumClippedWorldPixels
+}
+
+;
+;	* * * * * * *       ADD FLOOR/CEILING       * * * * * * *
+;
+AddCeiling
+	Increment TopY
+AddFloor
+{
+	YRange = ( (BottomY << 8) | TopY )
+
+	FloorStrip = Floor.Strips[x]
+	if (FloorStrip == $FFFF)
+	{
+		GOTO SETFLOOR
+	}
+	else if (FloorStrip == $FFFE)
+	{
+		GOTO NEWFLOOR
+	}
+	else
+	{
+		FINDFLOOR
+	}
+FINDFLOOR
+	if (Floor.Next != 0)
+	{
+		Floor = Floor.Next
+		if (SectorNear == Floor.SectorNear)
+		{
+			if (x < Floor.StartX)
+			{
+				Floor.StartX = x
+				GOTO SETFLOOR
+			}
+			else if (x > Floor.EndX)
+			{
+				Floor.EndX = x
+				GOTO SETFLOOR
+			}
+		}
+	}
+	else
+	{
+		Floor.SectorNear = SectorNear
+		Floor.Next = FloorMemoryNext
+	}
+NEWFLOOR:
+	Floor = FloorMemoryNext
+	FloorMemoryNext += SizeOfFloor
+	Floor.Next = 0
+	for (FloorX = 0 to RLPixX)
+	{
+		Floor.Strips[x] = $FFFF
+	}
+SETFLOOR:
+	Floor.Strips[x] = YRange
+}

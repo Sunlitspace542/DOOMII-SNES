@@ -1,0 +1,116 @@
+# outputDirectory   RLDATA:CUT/CHAINSAW/   ;optional directory for output(or input) of
+
+# loadDefaults  ;optional load of defaults (example of use only)
+
+
+;<
+;VERY quick cut controls, (fair cut):
+;
+;  cutter control:       value:  comments:
+;-----------------------------------------------------------------------
+# maxWidthHalf2Simul        0    0+    0 will disable feature
+# allowSimulCutInMiddle     0    0:1   1 will catch more near mirror chars & takes MUCH longer
+# maxWidth1Piece           16    1+    
+# minWidthToMirror         17    0+    strongly suggest = maxWidth1Piece+1 always
+# allowSlidingColumns       0    0:1   strongly suggest 1 for both (must have
+# allowSlidingRows          1    0:1     at least 1 on)
+# numYOffsets               1    1:16  16  full test (16x longer than 1)
+# allowDownUp               0    0:1   1 = slightly better
+# downUpForAllYOffsets      0    0:1   1 = slightly better (ignore if allowDownUp == 0)
+# numXOffsets               1    1:8   8  full test (8x longer than 1)
+# allowSliding1x1           0    0:1   1 suggested (about same speed)
+# allowSliding1x1OutOfRow   0    0:1   1 cuts better but flicker has peaks (always 1 if sliding columns)
+# proceedAfterSliding1x1    0    0;1   0 suggested (much faster, about as good)
+# weightObj                 6    0+    Weights control 1x1 and 2x2 choice.
+# weightFlicker             1    0+      A Bigger number gives that feature
+# weightVramChar            8    0+      more importance (therefore the cutter
+# weightRomChar             11   0+      will try to minimize their occurance)
+# allow1x1ToCopy2x2         0    0:1   1 allows a 1x1 to copy any vram char in a 2x2
+# allow2Char2x2Cut          0    0:1   use iff 2 chars in 2x2 is worth trying
+# allow2x2WithLeftBlank     0    0:1   ditto, ignored if allow2Char2x2Cut0
+# allow2x2WithRightBlank    0    0:1   ditto, ignored if allow2Char2x2Cut0                                
+;>
+
+
+<
+;fairly quick cut controls, (good cut):
+;
+;  cutter control:       value:  comments:
+;-----------------------------------------------------------------------
+# maxWidthHalf2Simul       16    0+    0 will disable feature
+# allowSimulCutInMiddle     0    0:1   1 will catch more near mirror chars & takes MUCH longer
+# maxWidth1Piece           48    1+    
+# minWidthToMirror         49    0+    strongly suggest = maxWidth1Piece+1 always
+# allowSlidingColumns       1    0:1   strongly suggest 1 for both (must have
+# allowSlidingRows          1    0:1     at least 1 on)
+# numYOffsets              16    1:16  16  full test (16x longer than 1)
+# allowDownUp               1    0:1   1 = slightly better
+# downUpForAllYOffsets      0    0:1   1 = slightly better (ignore if allowDownUp == 0)
+# numXOffsets               8    1:8   8  full test (8x longer than 1)
+# allowSliding1x1           1    0:1   1 suggested (about same speed)
+# allowSliding1x1OutOfRow   1    0:1   1 cuts better but flicker has peaks (always 1 if sliding columns)
+# proceedAfterSliding1x1    0    0;1   0 suggested (much faster, about as good)
+# weightObj                 6    0+    Weights control 1x1 and 2x2 choice.
+# weightFlicker             1    0+      A Bigger number gives that feature
+# weightVramChar            8    0+      more importance (therefore the cutter
+# weightRomChar             11   0+      will try to minimize their occurance)
+# allow1x1ToCopy2x2         0    0:1   1 allows a 1x1 to copy any vram char in a 2x2
+# allow2Char2x2Cut          0    0:1   use iff 2 chars in 2x2 is worth trying
+# allow2x2WithLeftBlank     0    0:1   ditto, ignored if allow2Char2x2Cut0
+# allow2x2WithRightBlank    0    0:1   ditto, ignored if allow2Char2x2Cut0                                
+>
+
+
+<
+;VERY slow cut controls, (use overnight for final cut):
+;
+;  cutter control:       value:  comments:
+;-----------------------------------------------------------------------
+# maxWidthHalf2Simul       40    0+    0 will disable feature
+# allowSimulCutInMiddle     1    0:1   1 will catch more near mirror chars & takes MUCH longer
+# maxWidth1Piece           80    1+    
+# minWidthToMirror         81    0+    strongly suggest = maxWidth1Piece+1 always
+# allowSlidingColumns       1    0:1   strongly suggest 1 for both (must have
+# allowSlidingRows          1    0:1     at least 1 on)
+# numYOffsets              16    1:16  16  full test (16x longer than 1)
+# allowDownUp               1    0:1   1 = slightly better
+# downUpForAllYOffsets      1    0:1   1 = slightly better (ignore if allowDownUp == 0)
+# numXOffsets               8    1:8   8  full test (8x longer than 1)
+# allowSliding1x1           1    0:1   1 suggested (about same speed)
+# allowSliding1x1OutOfRow   1    0:1   1 cuts better but flicker has peaks (always 1 if sliding columns)
+# proceedAfterSliding1x1    0    0;1   0 suggested (much faster, about as good)
+# weightObj                 6    0+    Weights control 1x1 and 2x2 choice.
+# weightFlicker             1    0+      A Bigger number gives that feature
+# weightVramChar            8    0+      more importance (therefore the cutter
+# weightRomChar            11    0+      will try to minimize their occurance)
+# allow1x1ToCopy2x2         0    0:1   1 allows a 1x1 to copy any vram char in a 2x2
+# allow2Char2x2Cut          0    0:1   use iff 2 chars in 2x2 is worth trying
+# allow2x2WithLeftBlank     0    0:1   ditto, ignored if allow2Char2x2Cut0
+# allow2x2WithRightBlank    0    0:1   ditto, ignored if allow2Char2x2Cut0                                
+>
+
+
+# flipInputX                0    0:1   1 = x flip input image about x=128
+# allowOutputFiles          0    0:1   1 allows 7 files to be output per master image name
+# allowDetailedListing      0    0:1   1 = output detail of 1x1 and 2x2 cuts
+# allowImageDump            0    0:1   1 = output dump of image
+# palette                   1    1:7   (for output only)
+# charNumOfst               0    0:65535 offset to add to all char #'s
+# only1x1                   1    0:1   1 = enable only 1x1s
+# smallImageTbl             1    0:1   1 = output small MiscData ImageTbl Indexes
+# priority                  1    0:3   (for output only)
+
+
+ChainSaw
+# inputDirectory    RLART:CUT/ChainSaw/
+    {
+        {
+            {
+            SAWGC0
+            SAWGD0
+            SAWGA0
+            SAWGB0
+            }
+        }
+    # outputName1Time   *
+    }

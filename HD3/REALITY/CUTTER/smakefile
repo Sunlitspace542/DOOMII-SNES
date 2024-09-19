@@ -1,0 +1,34 @@
+#
+#	Makefile for CUTTER		--	PROJECT: SNES SPRITE CUTTER
+#
+#	Written by:  John Morgan, Randy Linden
+#
+
+#
+#	RULES
+#
+.c.o:
+
+#for debugging:
+#	sc $*.c CommentNest Cpu=68040 Data=Far Code=Far Verbose Parms=Register \
+#          Debug=FullFlush
+	
+#for final version:
+	sc $*.c CommentNest Cpu=68040 Data=Far Code=Far Verbose Parms=Register \
+           Optimize OptTime NoStkChk
+
+.asm.o:
+	asm -d -m4 $*.asm
+
+#
+#	List of itty-bitty pieces to form HUGE program
+#
+CUTTER = \
+cutter.o readiff.o
+
+
+CUTTER: $(CUTTER)
+	slink LIB:c.o $(CUTTER) \
+	LIB LIB:sc.lib LIB LIB:amiga.lib \
+	ADDSYM NOICONS VERBOSE TO CUTTER
+#	copy CUTTER ACCESS:CUTTER

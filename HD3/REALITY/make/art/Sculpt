@@ -1,0 +1,4 @@
+xg -pRLDATA:sculptured -dRLDATA:ART/sculpt -ms -y0 -c8 -fn
+xc -v -iRLDATA:ART/sculpt.def0 -oRLDATA:COMP/sculpt.def
+xc -v -iRLDATA:ART/sculpt.map0 -oRLDATA:COMP/sculpt.map
+copy RLDATA:ART/Sculpt.rgb RLDATA:COMP/sculpt.rgb
